@@ -13,7 +13,7 @@ from ...artifacts import Artifact, ArtifactKind
 from ...telemetry import SampleTelemetry
 from ..base import PipelineResult, Timeline
 from .conversion import produced_artifacts, to_scribnic
-from .telemetry import memory_series, phase_windows, sample_telemetry
+from .telemetry import memory_series, phase_windows, sample_telemetry, started_at
 
 
 class ScribnicPipeline:
@@ -94,4 +94,5 @@ class ScribnicPipeline:
         return Timeline(
             memory_series(directories, telemetry),
             phase_windows(directories, telemetry),
+            started_at(directories, telemetry),
         )

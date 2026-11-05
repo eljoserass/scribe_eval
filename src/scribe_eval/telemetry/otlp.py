@@ -3,6 +3,7 @@
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from statistics import fmean
 
@@ -41,9 +42,18 @@ def _attributes(entries: Iterable[dict] | None) -> dict[str, object]:
     }
 
 
-def read_spans(directories: Iterable[Path]) -> list[Span]:
-    """Read every span from `traces.jsonl` in each directory."""
-    return [
+def _version(path: Path) -> tuple[int, int]:
+    """Identify a file's contents cheaply, so a cached read can't go stale."""
+    if not path.exists():
+        return 0, 0
+    stat = path.stat()
+    return stat.st_mtime_ns, stat.st_size
+
+
+@lru_cache(maxsize=4)
+def _file_spans(path: Path, version: tuple[int, int]) -> tuple[Span, ...]:
+    """Parse one traces file. A long run reads it once per sample otherwise."""
+    return tuple(
         Span(
             span["name"],
             span["traceId"],
@@ -51,24 +61,43 @@ def read_spans(directories: Iterable[Path]) -> list[Span]:
             int(span["endTimeUnixNano"]),
             _attributes(span.get("attributes")),
         )
-        for directory in directories
-        for row in read_jsonl(directory / "traces.jsonl")
+        for row in read_jsonl(path)
         for resource in row.get("resourceSpans", [])
         for scope in resource.get("scopeSpans", [])
         for span in scope.get("spans", [])
-    ]
+    )
+
+
+def read_spans(directories: Iterable[Path]) -> list[Span]:
+    """Read every span from `traces.jsonl` in each directory."""
+    spans = []
+    for directory in directories:
+        path = directory / "traces.jsonl"
+        spans += _file_spans(path, _version(path))
+    return spans
+
+
+@lru_cache(maxsize=4)
+def _file_points(
+    path: Path, version: tuple[int, int], metric_name: str
+) -> tuple[Point, ...]:
+    """Parse one metric from a metrics file, which can be hundreds of megabytes."""
+    points = []
+    for row in read_jsonl(path):
+        for resource in row.get("resourceMetrics", []):
+            for scope in resource.get("scopeMetrics", []):
+                for metric in scope.get("metrics", []):
+                    if metric["name"] == metric_name:
+                        points += _metric_points(metric)
+    return tuple(points)
 
 
 def read_points(directories: Iterable[Path], metric_name: str) -> list[Point]:
     """Read the gauge or sum points of one metric from `metrics.jsonl`."""
     points = []
     for directory in directories:
-        for row in read_jsonl(directory / "metrics.jsonl"):
-            for resource in row.get("resourceMetrics", []):
-                for scope in resource.get("scopeMetrics", []):
-                    for metric in scope.get("metrics", []):
-                        if metric["name"] == metric_name:
-                            points += _metric_points(metric)
+        path = directory / "metrics.jsonl"
+        points += _file_points(path, _version(path), metric_name)
     return points
 
 

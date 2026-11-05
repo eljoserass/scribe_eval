@@ -15,6 +15,7 @@ metric or a whole group. Nothing here measures clinical safety yet.
 | `resources` | `real_time_factor` | — | `audio` | Global |
 | `resources` | `peak_rss_bytes` | — | — | Max |
 | `resources` | `phase_seconds` | — | — | Mean per phase |
+| `resources` | `phase_real_time_factor` | — | `audio` | Global per phase |
 | `resources` | `process_peak_rss_bytes` | — | — | Max per process |
 | `resources` | `process_cpu_cores` | — | — | Mean per process |
 | `resources` | `prefill_tokens_per_second`, `generation_tokens_per_second` | — | — | Mean |
@@ -39,10 +40,12 @@ metric or a whole group. Nothing here measures clinical safety yet.
 - **`resources`** read the [telemetry contract](architecture.md#telemetry), so they
   work for any pipeline that fills it in. Only `elapsed_seconds` and `real_time_factor`
   work for every pipeline, because the harness measures them. The rest are `n/a` when
-  a pipeline doesn't report them. Memory is sampled RSS and may double count shared
-  pages. Model loading is in `startup.jsonl`, not here.
-- **Peak memory needs isolation.** With `isolate_samples = false`, a sample inherits
-  what earlier ones left, so peaks mix consultation length with order.
+  a pipeline doesn't report them. Memory is sampled RSS of the pipeline's processes,
+  not the whole machine, and may double count shared pages. For Scribnic that includes
+  the client, about 0.12 GB. Model loading is in `startup.jsonl`, not here.
+- **Peak memory and order.** Unless `isolate_samples = true`, a sample inherits what
+  earlier ones left, so peaks mix consultation length with order. The report's RAM
+  start and end columns show what stayed.
 
 ## ROUGE is a diagnostic
 

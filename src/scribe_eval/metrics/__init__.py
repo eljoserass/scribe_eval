@@ -8,6 +8,7 @@ from .note_reference import RougeL
 from .resources import (
     ElapsedSeconds,
     PeakMemory,
+    PhaseRealTimeFactor,
     PhaseSeconds,
     ProcessCpu,
     ProcessMemory,
@@ -27,6 +28,7 @@ _ALL: tuple[Metric, ...] = (
     RealTimeFactor(),
     PeakMemory(),
     PhaseSeconds(),
+    PhaseRealTimeFactor(),
     ProcessMemory(),
     ProcessCpu(),
     Throughput("prefill_tokens_per_second"),

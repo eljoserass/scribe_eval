@@ -31,6 +31,7 @@ class Timeline:
 
     memory: tuple[MemorySeries, ...] = ()
     windows: tuple[tuple[str, float, float], ...] = ()  # name, start, end in seconds
+    started_at: float | None = None  # Unix seconds, to place the sample in the run
 
 
 class Pipeline(Protocol):
