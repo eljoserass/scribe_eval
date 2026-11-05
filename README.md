@@ -1,8 +1,8 @@
 # scribe_eval
 
-An evaluation harness for clinical scribes. It runs a
-[Scribnic](../scribnic) workflow over datasets, scores what comes out, and keeps
-every run resumable.
+An evaluation harness for clinical scribes. It runs a scribe over datasets, scores
+what comes out, and keeps every run resumable. Any scribe can plug in by implementing
+one interface; [Scribnic](../scribnic) is the first.
 
 A digital scribe listens to a consultation and drafts a note, usually SOAP, that a
 clinician checks and files. It looks like a meeting summarizer, with three
@@ -32,8 +32,8 @@ Clinician workflow and IT integration are out of scope for now.
 
 ## Usage
 
-Needs [uv](https://docs.astral.sh/uv/) and a Scribnic checkout next to this
-repository.
+Needs [uv](https://docs.astral.sh/uv/). The Scribnic pipeline also needs a Scribnic
+checkout next to this repository.
 
 ```bash
 uv sync
@@ -44,7 +44,7 @@ uv run scribe-eval prepare primock57 --limit 3
 uv run scribe-eval run experiments/primock57_sample.toml
 ```
 
-Each run lands in `runs/`. To continue or rescore one:
+Each run lands in `runs/`, with a `report.html`. To continue or rescore one:
 
 ```bash
 uv run scribe-eval resume runs/<run>
@@ -59,6 +59,7 @@ so it is meant for a server: prepare the data there, or copy `data/` and set
 ## Docs
 
 - [Architecture](docs/architecture.md)
+- [Adding a pipeline](docs/pipelines.md)
 - [Datasets](docs/datasets.md)
 - [Metrics](docs/metrics.md)
 

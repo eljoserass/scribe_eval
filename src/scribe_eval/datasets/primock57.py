@@ -9,8 +9,8 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import numpy as np
-from scribnic import DiarizedTranscript, Note, SpeakerSegment
 
+from ..artifacts import DiarizedTranscript, Note, Segment
 from .prepared import sample_directory, write_dataset, write_sample
 
 REPOSITORY = "babylonhealth/primock57"
@@ -91,7 +91,7 @@ def _download_consultation(sample_id: str, source: Path) -> None:
         _download_audio(f"audio/{sample_id}_{speaker}.wav", source)
 
 
-def parse_textgrid(text: str, speaker: str) -> list[SpeakerSegment]:
+def parse_textgrid(text: str, speaker: str) -> list[Segment]:
     """Read one speaker's utterances, removing transcriber markup.
 
     `<UNSURE>` keeps its words. `<UNIN/>` and `<INAUDIBLE_SPEECH/>` mark audio nobody
@@ -102,7 +102,7 @@ def parse_textgrid(text: str, speaker: str) -> list[SpeakerSegment]:
         cleaned = " ".join(_MARKUP.sub(" ", content.replace('""', '"')).split())
         if cleaned:
             segments.append(
-                SpeakerSegment(cleaned, speaker, float(start), float(end), speaker)
+                Segment(cleaned, speaker, float(start), float(end), speaker)
             )
     return segments
 

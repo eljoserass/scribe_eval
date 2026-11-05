@@ -6,8 +6,7 @@ import wave
 from collections.abc import Sequence
 from pathlib import Path
 
-from scribnic import DiarizedTranscript, Note, SpeakerSegment
-
+from ..artifacts import DiarizedTranscript, Note, Segment
 from .prepared import sample_directory, write_dataset, write_sample
 
 _FIXTURE_NOTE = Path(__file__).parent / "assets" / "smoke_note_es.md"
@@ -18,9 +17,7 @@ _SAMPLE_ID = "consulta_taquicardia_01"
 def dialogue_transcript(dialogue: dict) -> DiarizedTranscript:
     """Read speaker turns. Duration estimates are not reliable, so times stay unset."""
     return DiarizedTranscript(
-        tuple(
-            SpeakerSegment(turn["text"], turn["speaker"]) for turn in dialogue["turns"]
-        )
+        tuple(Segment(turn["text"], turn["speaker"]) for turn in dialogue["turns"])
     )
 
 

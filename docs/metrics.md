@@ -14,6 +14,10 @@ metric or a whole group. Nothing here measures clinical safety yet.
 | `resources` | `elapsed_seconds` | — | — | Mean, p95 |
 | `resources` | `real_time_factor` | — | `audio` | Global |
 | `resources` | `peak_rss_bytes` | — | — | Max |
+| `resources` | `phase_seconds` | — | — | Mean per phase |
+| `resources` | `process_peak_rss_bytes` | — | — | Max per process |
+| `resources` | `process_cpu_cores` | — | — | Mean per process |
+| `resources` | `prefill_tokens_per_second`, `generation_tokens_per_second` | — | — | Mean |
 | `resources` | `prompt_tokens`, `completion_tokens` | — | — | Total, mean |
 
 ## Rules
@@ -32,9 +36,14 @@ metric or a whole group. Nothing here measures clinical safety yet.
 - **`soap_sections`** checks that S, O, A, and P appear in order with nothing before
   them. It can't see junk after the plan, like the `No consta | ...` line Bonsai 2B
   sometimes adds.
-- **`resources`.** RSS is sampled, adds the client and its runtimes, and may double
-  count shared pages. Model loading is in `startup.jsonl`, not here. Not every backend
-  reports tokens.
+- **`resources`** read the [telemetry contract](architecture.md#telemetry), so they
+  work for any pipeline that fills it in. Only `elapsed_seconds` and `real_time_factor`
+  work for every pipeline, because the harness measures them. The rest are `n/a` when
+  a pipeline doesn't report them. Memory is sampled RSS and may double count shared
+  pages. Model loading is in `startup.jsonl`, not here.
+- **Peak memory depends on order.** Processes stay loaded across samples, so a sample
+  inherits what earlier ones left. Peaks within a run don't isolate the effect of
+  consultation length.
 
 ## ROUGE is a diagnostic
 

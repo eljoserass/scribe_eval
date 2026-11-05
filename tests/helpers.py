@@ -1,64 +1,88 @@
-"""Small datasets and fake backends, so tests never load a model."""
+"""A small dataset and a fake pipeline, so core tests need no real scribe."""
 
 import wave
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
-from scribnic import AudioFile, Note, Transcript
-from scribnic.artifacts import StepOutput
-from scribnic.config import ModelConfig, RuntimeConfig, StepConfig, WorkflowConfig
-
+from scribe_eval import PipelineResult, Timeline
+from scribe_eval.artifacts import ArtifactKind, Note, Transcript
 from scribe_eval.datasets.prepared import sample_directory, write_dataset, write_sample
+from scribe_eval.telemetry import ModelUsage, Phase, SampleTelemetry
 
 
-def fake_workflow() -> WorkflowConfig:
-    """Describe audio → transcript → note, with no real runtime."""
-    runtime = RuntimeConfig("fake", "fake")
-    speech = ModelConfig("speech", ("audio",), "transcript")
-    note = ModelConfig("note", ("transcript",), "note")
-    return WorkflowConfig(
-        "fake",
-        (
-            StepConfig("speech", speech, runtime, "fake"),
-            StepConfig("note", note, runtime, "fake"),
-        ),
-        inputs=("audio", "transcript"),
-    )
+class FakePipeline:
+    """The whole interface in a few lines, as a third party would write it."""
 
+    def __init__(
+        self,
+        *,
+        base_directory: Path = Path("."),
+        fail_notes_for: Iterable[str] = (),
+        interrupt_after: int | None = None,
+        version: int = 1,
+    ) -> None:
+        """Choose which samples fail and when to simulate Ctrl+C."""
+        self.fail_notes_for = set(fail_notes_for)
+        self.interrupt_after = interrupt_after
+        self.version = version
+        self.runs = 0
+        self.opened = False
 
-class FakeBackend:
-    """Transcribe to a fixed text and turn a transcript into a note."""
+    def describe(self) -> dict[str, object]:
+        """Name this pipeline."""
+        return {"name": "fake", "version": self.version}
 
-    def __init__(self, step: StepConfig, *, fail_notes_for: set[str], calls: list):
-        """Keep which transcripts must fail, and record every call."""
-        self.step = step
-        self.fail_notes_for = fail_notes_for
-        self.calls = calls
+    def produces(self, input_kind: ArtifactKind) -> set[ArtifactKind]:
+        """Take audio or text."""
+        if input_kind == "audio":
+            return {"transcript", "note"}
+        if input_kind == "transcript":
+            return {"note"}
+        raise ValueError(f"The fake pipeline does not accept {input_kind!r}.")
 
-    def start(self) -> float:
-        """Pretend the model is already loaded."""
-        return 0.0
+    @contextmanager
+    def open(self, telemetry_directory: Path) -> Iterator[None]:
+        """Pretend to hold resources."""
+        self.opened = True
+        yield
+        self.opened = False
 
-    def run(self, source) -> StepOutput:
-        """Produce the next artifact."""
-        self.calls.append(self.step.name)
-        if isinstance(source, AudioFile):
-            return StepOutput(Transcript.from_text(f"hello {source.path.parent.name}"))
-        if source.text.split()[-1] in self.fail_notes_for:
-            raise ValueError("Note rejected")
-        text = "S — a\nO — b\nA — c\nP — d"
-        usage = {"prompt_tokens": 10, "completion_tokens": 5}
-        return StepOutput(Note(text), {"usage": usage})
+    def prepare(self, input_kind: ArtifactKind) -> dict[str, object]:
+        """Report an instant load."""
+        return {"elapsed_seconds": 0.0}
 
-    def process_ids(self) -> tuple[int, ...]:
-        """Own no processes."""
-        return ()
+    def run(self, source, output_directory: Path) -> PipelineResult:
+        """Transcribe to the sample's name, then write a note."""
+        assert self.opened
+        if self.interrupt_after is not None and self.runs >= self.interrupt_after:
+            raise KeyboardInterrupt
+        self.runs += 1
+        name = source.path.parent.name
+        transcript = Transcript.from_text(f"hello {name}")
+        if name in self.fail_notes_for:
+            return PipelineResult(
+                "error", {"transcript": transcript}, error="Note rejected"
+            )
+        telemetry = SampleTelemetry(
+            phases=(Phase("transcription", 1.0), Phase("note", 0.5)),
+            models=(ModelUsage("note", 10, 5),),
+        )
+        artifacts = {
+            "transcript": transcript,
+            "note": Note("S — a\nO — b\nA — c\nP — d"),
+        }
+        return PipelineResult("success", artifacts, telemetry=telemetry)
 
-    def close(self) -> None:
-        """Release nothing."""
+    def timeline(
+        self, telemetry_directories: Iterable[Path], telemetry: SampleTelemetry
+    ) -> Timeline:
+        """Have no timeline."""
+        return Timeline()
 
 
 def write_tiny_dataset(root: Path, sample_ids: list[str]) -> None:
-    """Write samples whose reference transcript matches the fake backend."""
+    """Write samples whose reference transcript matches the fake pipeline."""
     for sample_id in sample_ids:
         directory = sample_directory(root, sample_id)
         directory.mkdir(parents=True)
@@ -78,7 +102,9 @@ def write_tiny_dataset(root: Path, sample_ids: list[str]) -> None:
 
 EXPERIMENT = """
 name = "tiny"
-workflow = "unused"
+
+[pipeline]
+type = "tests.helpers:FakePipeline"
 
 [[datasets]]
 name = "tiny"

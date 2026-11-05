@@ -10,8 +10,8 @@ from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
-from scribnic import load_artifact
-
+from .artifacts import load_artifact, save_artifact
+from .telemetry import SampleTelemetry
 from .types import Prediction
 
 
@@ -109,9 +109,26 @@ class RunPaths:
         return self.root / "startup.jsonl"
 
     @property
+    def report(self) -> Path:
+        """Readable summary of the run."""
+        return self.root / "report.html"
+
+    @property
     def results(self) -> Path:
         """Aggregated metrics."""
         return self.root / "results.json"
+
+    def next_telemetry(self) -> Path:
+        """Pick a new folder, so a resumed run never overwrites earlier telemetry."""
+        execution = 1
+        while (self.telemetry / f"execution-{execution}").exists():
+            execution += 1
+        return self.telemetry / f"execution-{execution}"
+
+    @property
+    def telemetry(self) -> Path:
+        """OpenTelemetry export, one folder per execution."""
+        return self.root / "telemetry"
 
     def predictions(self, dataset: str) -> Path:
         """One row per workflow execution."""
@@ -122,7 +139,7 @@ class RunPaths:
         return self.root / "datasets" / dataset / "scores.jsonl"
 
     def next_attempt(self, dataset: str, sample_id: str) -> Path:
-        """Pick an unused directory, because Scribnic requires an empty one."""
+        """Pick an unused directory, so a retry never mixes with an earlier try."""
         samples = self.root / "datasets" / dataset / "samples" / sample_id
         attempt = 1
         while (samples / f"attempt-{attempt}").exists():
@@ -130,8 +147,14 @@ class RunPaths:
         return samples / f"attempt-{attempt}"
 
 
+def save_artifacts(prediction: Prediction, root: Path) -> None:
+    """Write a prediction's artifacts to its attempt directory."""
+    for kind, artifact in prediction.artifacts.items():
+        save_artifact(artifact, root / prediction.run_directory / f"{kind}.json")
+
+
 def prediction_row(prediction: Prediction) -> dict:
-    """Serialize a prediction; artifacts stay in Scribnic's run directory."""
+    """Serialize a prediction; artifacts are files in its attempt directory."""
     return {
         "dataset": prediction.dataset,
         "sample_id": prediction.sample_id,
@@ -141,15 +164,13 @@ def prediction_row(prediction: Prediction) -> dict:
         "status": prediction.status,
         "error": prediction.error,
         "artifacts": sorted(prediction.artifacts),
-        "steps": list(prediction.steps),
-        "resources": prediction.resources,
-        "elapsed_seconds": prediction.elapsed_seconds,
+        "telemetry": prediction.telemetry.to_dict(),
         "run_directory": prediction.run_directory,
     }
 
 
 def load_prediction(root: Path, row: dict) -> Prediction:
-    """Rebuild a prediction, reading its artifacts from Scribnic's run directory."""
+    """Rebuild a prediction, reading its artifacts from its attempt directory."""
     directory = root / row["run_directory"]
     artifacts = {
         kind: load_artifact(directory / f"{kind}.json") for kind in row["artifacts"]
@@ -163,9 +184,7 @@ def load_prediction(root: Path, row: dict) -> Prediction:
         status=row["status"],
         error=row["error"],
         artifacts=artifacts,
-        steps=tuple(row["steps"]),
-        resources=row["resources"],
-        elapsed_seconds=row["elapsed_seconds"],
+        telemetry=SampleTelemetry.from_dict(row["telemetry"]),
         run_directory=row["run_directory"],
     )
 

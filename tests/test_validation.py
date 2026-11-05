@@ -4,8 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scribnic import Note, Transcript
-
+from scribe_eval.artifacts import Note, Transcript
 from scribe_eval.config import DatasetEntry
 from scribe_eval.datasets.prepared import (
     PreparedDataset,
@@ -15,7 +14,7 @@ from scribe_eval.datasets.prepared import (
 )
 from scribe_eval.validation import plan_dataset
 
-from .helpers import fake_workflow, write_tiny_dataset
+from .helpers import FakePipeline, write_tiny_dataset
 
 
 class ValidationTests(unittest.TestCase):
@@ -27,9 +26,9 @@ class ValidationTests(unittest.TestCase):
         self.dataset = PreparedDataset(self.root)
 
     def plan(self, input_kind: str, metrics: tuple[str, ...]):
-        """Validate one entry against the fake workflow."""
+        """Validate one entry against the fake pipeline."""
         entry = DatasetEntry("tiny", "all", input_kind, metrics)
-        return plan_dataset(entry, self.dataset, fake_workflow())
+        return plan_dataset(entry, self.dataset, FakePipeline())
 
     def test_transcript_input_makes_wer_not_applicable(self):
         plan = self.plan("transcript", ("wer", "soap_sections"))
@@ -49,7 +48,7 @@ class ValidationTests(unittest.TestCase):
         )
         entry = DatasetEntry("no_notes", "all", "audio", ("rouge_l",))
         with self.assertRaisesRegex(ValueError, "'note' reference"):
-            plan_dataset(entry, PreparedDataset(root), fake_workflow())
+            plan_dataset(entry, PreparedDataset(root), FakePipeline())
 
     def test_missing_input_is_an_error(self):
         root = self.root.parent / "text_only"
@@ -59,7 +58,7 @@ class ValidationTests(unittest.TestCase):
         )
         entry = DatasetEntry("text_only", "all", "audio", ())
         with self.assertRaisesRegex(ValueError, "no 'audio' input"):
-            plan_dataset(entry, PreparedDataset(root), fake_workflow())
+            plan_dataset(entry, PreparedDataset(root), FakePipeline())
 
     def test_unprepared_dataset_explains_what_to_do(self):
         with self.assertRaisesRegex(ValueError, "scribe-eval prepare"):

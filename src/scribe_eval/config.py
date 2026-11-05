@@ -4,10 +4,9 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-from scribnic import ArtifactKind
-from scribnic.config import artifact_kind
+from .artifacts import ArtifactKind, artifact_kind
 
-_EXPERIMENT_KEYS = {"name", "workflow", "datasets"}
+_EXPERIMENT_KEYS = {"name", "pipeline", "datasets"}
 _DATASET_KEYS = {
     "name",
     "split",
@@ -36,10 +35,11 @@ class DatasetEntry:
 
 @dataclass(frozen=True)
 class ExperimentConfig:
-    """One workflow evaluated on one or more datasets."""
+    """One pipeline evaluated on one or more datasets."""
 
     name: str
-    workflow: str
+    pipeline_type: str
+    pipeline_settings: dict[str, object]
     datasets: tuple[DatasetEntry, ...]
 
 
@@ -75,17 +75,11 @@ def _dataset_entry(data: dict) -> DatasetEntry:
     )
 
 
-def _resolve_workflow(value: str, directory: Path) -> str:
-    """Keep preset names; make workflow files absolute relative to the experiment."""
-    candidate = directory / value
-    return str(candidate.resolve()) if candidate.exists() else value
-
-
 def load_experiment(path: str | Path) -> ExperimentConfig:
     """Read and check an experiment file.
 
     Args:
-        path: TOML file. A relative `workflow` path resolves against its directory.
+        path: TOML file.
 
     Returns:
         The parsed experiment.
@@ -99,7 +93,8 @@ def load_experiment(path: str | Path) -> ExperimentConfig:
     try:
         _check_keys(data, _EXPERIMENT_KEYS, "experiment")
         datasets = tuple(_dataset_entry(entry) for entry in data["datasets"])
-        workflow = _resolve_workflow(data["workflow"], path.parent)
+        settings = dict(data["pipeline"])
+        pipeline_type = settings.pop("type")
         name = data["name"]
     except KeyError as error:
         raise ValueError(f"Missing setting in {path}: {error}") from error
@@ -108,4 +103,4 @@ def load_experiment(path: str | Path) -> ExperimentConfig:
         raise ValueError("An experiment needs at least one dataset.")
     if len(names) != len(set(names)):
         raise ValueError("Each dataset can appear only once in an experiment.")
-    return ExperimentConfig(name, workflow, datasets)
+    return ExperimentConfig(name, pipeline_type, settings, datasets)

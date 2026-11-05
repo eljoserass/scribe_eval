@@ -1,9 +1,9 @@
 # Working on scribe_eval
 
-`scribe_eval` is the glue between datasets, one Scribnic workflow, and metrics. Keep
-the core easy to read, navigate, test, and reuse from Python and the CLI. The style
-rules follow `scribnic/AGENTS.md`; keep both aligned when they change. Prefer an
-easy-to-maintain design over an optimal one. See `docs/architecture.md`.
+`scribe_eval` is the glue between datasets, a scribe pipeline, and metrics. Keep the
+core easy to read, navigate, test, and reuse from Python and the CLI. The style rules
+follow Scribnic's `AGENTS.md`. Prefer an easy-to-maintain design over an optimal one.
+See `docs/architecture.md`.
 
 ## Writing
 
@@ -132,9 +132,11 @@ def real_time_factor(
 
 - Give every new or modified class a docstring stating its responsibility,
   owned resources, and lifetime. Document behavior rather than repeating names.
-- Do not change Scribnic from this repository. Use its public API; importing
-  `scribnic.planning` for validation is the accepted exception. Dataset loading,
-  perturbations, judges, and metrics live here, never in Scribnic.
+- The harness knows nothing about any particular scribe. A scribe implements
+  `Pipeline` in `pipelines/`, and only that implementation may import its packages.
+  Dataset loading, perturbations, judges, and metrics live in the harness.
+- Metrics read the telemetry contract, never a pipeline's own fields. Add to the
+  contract when something is worth comparing across pipelines.
 - A converter reads one raw dataset format and writes the common prepared format.
   The prepared loader knows nothing about individual datasets.
 - A metric declares what it requires and how it aggregates. Inference code must not
@@ -152,10 +154,10 @@ def real_time_factor(
 
 ## Experiment and result contracts
 
-- One experiment evaluates one workflow, on one or more datasets. Each dataset entry
-  selects its own input and metrics. Compare workflows by comparing finished runs.
+- One experiment evaluates one pipeline, on one or more datasets. Each dataset entry
+  selects its own input and metrics. Compare pipelines by comparing finished runs.
 - Validate datasets, requested inputs, and metric requirements before loading models.
-  A missing dataset artifact is an error. A metric the workflow cannot satisfy is
+  A missing dataset artifact is an error. A metric the pipeline cannot satisfy is
   `n/a` with a visible reason.
 - Freeze the resolved sample IDs in the run manifest. Resuming must use the same
   samples and configuration, or fail clearly.
@@ -163,11 +165,11 @@ def real_time_factor(
   `status.json` as a summary. A row key is `dataset, variant, sample_id, repeat`.
 - Failures are results. Record them as rows, keep partial artifacts, and report
   failure counts beside every aggregate. Never drop them silently.
-- `Prediction.artifacts` contains only what the workflow produced, never its input.
+- `Prediction.artifacts` contains only what the pipeline produced, never its input.
 - Metric normalization is part of the metric. Version it, and apply it equally to
   prediction and reference.
-- Record the effective workflow configuration, versions, and dataset hashes so a
-  run can be interpreted later. Keep model loading separate from inference timing.
+- Record the effective pipeline configuration, versions, and hardware so a run can
+  be interpreted later. Keep model loading separate from inference timing.
 - Do not present a result as clinical validation. Record dataset language and
   provenance, and keep synthetic or fixture references labeled as such.
 
@@ -182,17 +184,18 @@ def real_time_factor(
 
 - Keep the base installation small. Import heavy metric libraries inside the metric
   that uses them, behind optional extras. Importing the package must not need Torch.
-- Depend on Scribnic through a local path dependency. Choose incompatible Scribnic
-  extras when launching a run; do not orchestrate environments here.
+- Pipeline dependencies are optional extras. Importing `scribe_eval` must not import
+  any pipeline package. Choose environments when launching a run; do not orchestrate
+  them here.
 
 ## Verification and repository hygiene
 
 - Run `uv run ruff check src tests` and `uv run ruff format --check src tests`.
   Ruff handles layout; do not add competing formatters.
 - Run `uv run python -m unittest discover -t . -s tests`.
-- Test meaningful behavior and public boundaries with small fakes. Use the
-  `backend_factory` of `open_workflow` to run workflows without loading models.
-  Cover validation, sample selection, resume, failure rows, and aggregation.
+- Test meaningful behavior and public boundaries with small fakes. Test the core with
+  a fake `Pipeline`, and each implementation separately. Cover validation, sample
+  selection, resume, failure rows, and aggregation.
 - Keep live model checks and dataset downloads opt-in. Ordinary unit tests must not
   download weights or data, require a GPU, or contact inference services.
 - Run checks appropriate to the change. Documentation-only edits need no model runs.

@@ -1,5 +1,8 @@
 # All consultations. Expect hours on CPU; meant for a server.
 name = "primock57-full"
+
+[pipeline]
+type = "scribnic"
 workflow = "../workflows/whisper_small_bonsai_en.toml"
 
 [[datasets]]

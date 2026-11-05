@@ -1,5 +1,8 @@
 # One Spanish sample through the full pipeline. Its reference note is a fixture.
 name = "smoke"
+
+[pipeline]
+type = "scribnic"
 workflow = "whisper_bonsai"
 
 [[datasets]]

@@ -4,6 +4,7 @@ from collections import defaultdict
 from statistics import fmean
 
 from .storage import RunPaths, latest_rows, read_jsonl
+from .telemetry.otlp import summarize
 from .types import Score
 from .validation import DatasetPlan
 
@@ -52,7 +53,23 @@ def _overall(datasets: dict[str, dict]) -> dict[str, dict[str, float]]:
     return overall
 
 
+def _compute(paths: RunPaths, plans: tuple[DatasetPlan, ...]) -> dict[str, list[str]]:
+    """List where each phase actually ran."""
+    devices: dict[str, set[str]] = defaultdict(set)
+    for plan in plans:
+        for row in read_jsonl(paths.predictions(plan.entry.name)):
+            for phase in row["telemetry"]["phases"]:
+                if phase["parent"] is None and phase["device"] is not None:
+                    devices[phase["name"]].add(phase["device"])
+    return {name: sorted(values) for name, values in devices.items()}
+
+
 def aggregate_run(paths: RunPaths, plans: tuple[DatasetPlan, ...]) -> dict[str, object]:
     """Build the results document; `overall` is a macro average across datasets."""
     datasets = {plan.entry.name: _dataset_results(paths, plan) for plan in plans}
-    return {"datasets": datasets, "overall": _overall(datasets)}
+    return {
+        "datasets": datasets,
+        "overall": _overall(datasets),
+        "compute": _compute(paths, plans),
+        "telemetry": summarize(paths.telemetry),
+    }

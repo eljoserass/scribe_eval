@@ -1,17 +1,17 @@
-"""First phase: pass samples through the workflow and record what came out."""
+"""First phase: pass samples through the pipeline and record what came out."""
 
 from collections.abc import Callable
-from pathlib import Path
+from dataclasses import replace
+from time import perf_counter
 
-from scribnic import RunResult, WorkflowConfig, WorkflowRunError, open_workflow
-from scribnic.workflow import BackendFactory, WorkflowSession
-
+from .pipelines import Pipeline
 from .storage import (
     RunPaths,
     append_jsonl,
     latest_rows,
     prediction_row,
     read_jsonl,
+    save_artifacts,
 )
 from .types import Prediction, Sample
 from .validation import DatasetPlan
@@ -35,95 +35,61 @@ def _pending_ids(
     return [sample_id for sample_id in plan.sample_ids if sample_id not in finished]
 
 
-def _step_summary(result: RunResult) -> tuple[dict[str, object], ...]:
-    """Keep the step data metrics need; the full record stays in Scribnic's run."""
-    return tuple(
-        {
-            "name": step.name,
-            "backend": step.backend,
-            "elapsed_seconds": step.elapsed_seconds,
-            "usage": step.metadata.get("usage"),
-        }
-        for step in result.steps
-    )
-
-
-def _prediction(
-    result: RunResult, sample: Sample, plan: DatasetPlan, directory: Path, root: Path
+def _predict(
+    pipeline: Pipeline, sample: Sample, plan: DatasetPlan, paths: RunPaths
 ) -> Prediction:
-    """Convert a Scribnic result, leaving out the input artifact it also carries."""
-    produced = {
-        artifact.kind: artifact
-        for artifact in result.artifacts
-        if artifact.kind != result.source.kind
-    }
-    steps = _step_summary(result)
+    """Run one sample, timing it from the outside."""
+    directory = paths.next_attempt(plan.entry.name, sample.id)
+    directory.mkdir(parents=True)
+    started = perf_counter()
+    result = pipeline.run(sample.artifact(plan.entry.input), directory / "pipeline")
+    wall_seconds = perf_counter() - started
     return Prediction(
         dataset=plan.entry.name,
         sample_id=sample.id,
         variant=CLEAN_VARIANT,
         repeat=FIRST_REPEAT,
         input_kind=plan.entry.input,
-        status="success" if result.status == "success" else "error",
+        status=result.status,
         error=result.error,
-        artifacts=produced,
-        steps=steps,
-        resources=result.resources,
-        elapsed_seconds=sum(float(step["elapsed_seconds"]) for step in steps),
-        run_directory=str(directory.relative_to(root)),
+        artifacts=result.artifacts,
+        telemetry=replace(result.telemetry, wall_seconds=wall_seconds),
+        run_directory=str(directory.relative_to(paths.root)),
     )
-
-
-def _predict(
-    session: WorkflowSession, sample: Sample, plan: DatasetPlan, paths: RunPaths
-) -> Prediction:
-    """Run one sample; a failed execution is a result, not an exception."""
-    directory = paths.next_attempt(plan.entry.name, sample.id)
-    source = sample.artifact(plan.entry.input)
-    try:
-        result = session.run(source, output_dir=directory)
-    except WorkflowRunError as error:
-        result = error.result
-    return _prediction(result, sample, plan, directory, paths.root)
 
 
 def run_inference(
     paths: RunPaths,
     plans: tuple[DatasetPlan, ...],
-    workflow: WorkflowConfig,
+    pipeline: Pipeline,
     *,
     retry_errors: bool = False,
-    download: bool | None = None,
-    backend_factory: BackendFactory | None = None,
     on_prediction: ProgressCallback | None = None,
 ) -> None:
     """Run every pending sample, appending one row each.
 
-    Models load once and stay loaded across datasets. Safe to call again on the same
-    run: samples with a recorded result are skipped.
+    Resources stay loaded across datasets. Safe to call again on the same run:
+    samples with a recorded result are skipped.
 
     Args:
         paths: Run layout.
         plans: Validated datasets.
-        workflow: Workflow under evaluation.
+        pipeline: Pipeline under evaluation.
         retry_errors: Run failed samples again; the new row supersedes the old one.
-        download: Passed to Scribnic; False requires cached models.
-        backend_factory: Replaces model backends, for tests.
         on_prediction: Called after each sample with the prediction, its position,
             and the number of pending samples.
     """
-    with open_workflow(
-        workflow, backend_factory=backend_factory, download=download
-    ) as session:
+    with pipeline.open(paths.next_telemetry()):
         for plan in plans:
             pending = _pending_ids(paths, plan, retry_errors=retry_errors)
             if not pending:
                 continue
-            startup = session.start(source_kind=plan.entry.input)
+            startup = pipeline.prepare(plan.entry.input)
             append_jsonl(paths.startup, {"dataset": plan.entry.name, **startup})
             for position, sample_id in enumerate(pending, start=1):
                 sample = plan.dataset.sample(sample_id)
-                prediction = _predict(session, sample, plan, paths)
+                prediction = _predict(pipeline, sample, plan, paths)
+                save_artifacts(prediction, paths.root)
                 append_jsonl(
                     paths.predictions(plan.entry.name), prediction_row(prediction)
                 )
