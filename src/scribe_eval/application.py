@@ -2,20 +2,18 @@
 
 import platform
 import shutil
-from dataclasses import replace
 from datetime import datetime, timezone
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
-
-from scribnic import WorkflowConfig, load_workflow
-from scribnic.planning import validate_workflow
-from scribnic.workflow import BackendFactory
 
 from .aggregation import aggregate_run
 from .config import ExperimentConfig, load_experiment
 from .datasets import CONVERTERS
 from .datasets.prepared import PreparedDataset
+from .hardware import describe_hardware
 from .inference import ProgressCallback, run_inference
+from .pipelines import Pipeline, create_pipeline
+from .reporting import write_report
 from .scoring import score_dataset
 from .storage import (
     RunPaths,
@@ -59,14 +57,14 @@ def prepare_dataset(
     return PreparedDataset(output)
 
 
-def _workflow_hash(workflow: WorkflowConfig) -> str:
-    """Fingerprint a workflow's effective configuration."""
-    return sha256_text(repr(sorted(workflow.to_dict().items())))
+def _pipeline_hash(pipeline: Pipeline) -> str:
+    """Fingerprint a pipeline's effective configuration."""
+    return sha256_text(repr(sorted(pipeline.describe().items())))
 
 
 def _plans(
     experiment: ExperimentConfig,
-    workflow: WorkflowConfig,
+    pipeline: Pipeline,
     data_directory: Path,
     frozen: dict[str, list[str]] | None = None,
 ) -> tuple[DatasetPlan, ...]:
@@ -75,29 +73,40 @@ def _plans(
     for entry in experiment.datasets:
         dataset = PreparedDataset(data_directory / entry.name)
         ids = frozen[entry.name] if frozen else None
-        plans.append(plan_dataset(entry, dataset, workflow, sample_ids=ids))
+        plans.append(plan_dataset(entry, dataset, pipeline, sample_ids=ids))
     return tuple(plans)
+
+
+def _package_version(name: str) -> str | None:
+    """Read an installed package's version."""
+    try:
+        return version(name)
+    except PackageNotFoundError:
+        return None
 
 
 def _manifest(
     experiment: ExperimentConfig,
-    workflow: WorkflowConfig,
+    pipeline: Pipeline,
     plans: tuple[DatasetPlan, ...],
+    *,
     text: str,
+    base_directory: Path,
 ) -> dict[str, object]:
     """Record what a run needs for later interpretation and resuming."""
     return {
         "name": experiment.name,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "experiment_sha256": sha256_text(text),
-        "workflow_source": experiment.workflow,
-        "workflow_sha256": _workflow_hash(workflow),
-        "workflow": workflow.to_dict(),
+        "experiment_directory": str(base_directory),
+        "pipeline_type": experiment.pipeline_type,
+        "pipeline_sha256": _pipeline_hash(pipeline),
+        "pipeline": pipeline.describe(),
+        "hardware": describe_hardware(),
         "versions": {
             "python": platform.python_version(),
             "platform": platform.platform(),
-            "scribe_eval": version("scribe-eval"),
-            "scribnic": version("scribnic"),
+            "scribe_eval": _package_version("scribe-eval"),
         },
         "datasets": {
             plan.entry.name: {
@@ -142,25 +151,24 @@ def _write_status(
     )
 
 
-def _score_and_aggregate(
-    paths: RunPaths, plans: tuple[DatasetPlan, ...]
+def _score_and_report(
+    paths: RunPaths, plans: tuple[DatasetPlan, ...], pipeline: Pipeline
 ) -> dict[str, object]:
-    """Score saved predictions and write the results."""
+    """Score saved predictions, then write the results and the report."""
     for plan in plans:
         score_dataset(paths, plan)
     results = aggregate_run(paths, plans)
     write_json(paths.results, results)
+    write_report(paths, plans, results, pipeline)
     return results
 
 
 def _execute(
     paths: RunPaths,
     plans: tuple[DatasetPlan, ...],
-    workflow: WorkflowConfig,
+    pipeline: Pipeline,
     *,
     retry_errors: bool,
-    download: bool | None,
-    backend_factory: BackendFactory | None,
     on_prediction: ProgressCallback | None,
 ) -> dict[str, object]:
     """Run inference and scoring, keeping status truthful on every exit path."""
@@ -174,23 +182,16 @@ def _execute(
     _write_status(paths, plans, "running")
     try:
         run_inference(
-            paths,
-            plans,
-            workflow,
-            retry_errors=retry_errors,
-            download=download,
-            backend_factory=backend_factory,
-            on_prediction=track,
+            paths, plans, pipeline, retry_errors=retry_errors, on_prediction=track
         )
-        results = _score_and_aggregate(paths, plans)
+        _write_status(paths, plans, "completed")
+        return _score_and_report(paths, plans, pipeline)
     except KeyboardInterrupt:
         _write_status(paths, plans, "interrupted")
         raise
     except Exception as error:
         _write_status(paths, plans, "failed", str(error))
         raise
-    _write_status(paths, plans, "completed")
-    return results
 
 
 def run_experiment(
@@ -199,9 +200,7 @@ def run_experiment(
     data_directory: Path = Path("data"),
     runs_directory: Path = Path("runs"),
     run_directory: Path | None = None,
-    workflow: WorkflowConfig | None = None,
-    download: bool | None = None,
-    backend_factory: BackendFactory | None = None,
+    pipeline: Pipeline | None = None,
     on_prediction: ProgressCallback | None = None,
 ) -> tuple[Path, dict[str, object]]:
     """Validate an experiment, then run and score it.
@@ -211,9 +210,7 @@ def run_experiment(
         data_directory: Root of prepared datasets.
         runs_directory: Where a new run directory is created.
         run_directory: Exact directory for this run, which must not exist.
-        workflow: Parsed workflow overriding the experiment's, for tests.
-        download: Passed to Scribnic; False requires cached models.
-        backend_factory: Replaces model backends, for tests.
+        pipeline: Replaces the configured pipeline, for tests.
         on_prediction: Called after each sample.
 
     Returns:
@@ -224,9 +221,13 @@ def run_experiment(
     """
     experiment_path = Path(experiment_path).expanduser().resolve(strict=True)
     experiment = load_experiment(experiment_path)
-    workflow = workflow or load_workflow(experiment.workflow)
-    validate_workflow(workflow)
-    plans = _plans(experiment, workflow, data_directory)
+    base_directory = experiment_path.parent
+    pipeline = pipeline or create_pipeline(
+        experiment.pipeline_type,
+        experiment.pipeline_settings,
+        base_directory=base_directory,
+    )
+    plans = _plans(experiment, pipeline, data_directory)
 
     root = run_directory or new_run_directory(runs_directory, experiment.name)
     root = root.expanduser().resolve()
@@ -236,39 +237,39 @@ def run_experiment(
     paths = RunPaths(root)
     shutil.copyfile(experiment_path, paths.experiment)
     text = experiment_path.read_text(encoding="utf-8")
-    write_json(paths.manifest, _manifest(experiment, workflow, plans, text))
+    manifest = _manifest(
+        experiment, pipeline, plans, text=text, base_directory=base_directory
+    )
+    write_json(paths.manifest, manifest)
 
     results = _execute(
-        paths,
-        plans,
-        workflow,
-        retry_errors=False,
-        download=download,
-        backend_factory=backend_factory,
-        on_prediction=on_prediction,
+        paths, plans, pipeline, retry_errors=False, on_prediction=on_prediction
     )
     return root, results
 
 
 def _load_run(
-    run_directory: Path, data_directory: Path, workflow: WorkflowConfig | None
-) -> tuple[RunPaths, tuple[DatasetPlan, ...], WorkflowConfig]:
+    run_directory: Path, data_directory: Path, pipeline: Pipeline | None
+) -> tuple[RunPaths, tuple[DatasetPlan, ...], Pipeline]:
     """Rebuild a run's plans, refusing data or configuration that changed."""
     paths = RunPaths(Path(run_directory).expanduser().resolve(strict=True))
     manifest = read_json(paths.manifest)
     experiment = load_experiment(paths.experiment)
-    experiment = replace(experiment, workflow=manifest["workflow_source"])
-    workflow = workflow or load_workflow(experiment.workflow)
-    if _workflow_hash(workflow) != manifest["workflow_sha256"]:
-        raise ValueError("The workflow changed since this run started.")
+    pipeline = pipeline or create_pipeline(
+        experiment.pipeline_type,
+        experiment.pipeline_settings,
+        base_directory=Path(manifest["experiment_directory"]),
+    )
+    if _pipeline_hash(pipeline) != manifest["pipeline_sha256"]:
+        raise ValueError("The pipeline changed since this run started.")
 
     recorded = manifest["datasets"]
     frozen = {name: data["sample_ids"] for name, data in recorded.items()}
-    plans = _plans(experiment, workflow, data_directory, frozen)
+    plans = _plans(experiment, pipeline, data_directory, frozen)
     for plan in plans:
         if plan.dataset.version != recorded[plan.entry.name]["version"]:
             raise ValueError(f"Dataset {plan.entry.name!r} changed version.")
-    return paths, plans, workflow
+    return paths, plans, pipeline
 
 
 def resume_run(
@@ -276,9 +277,7 @@ def resume_run(
     *,
     data_directory: Path = Path("data"),
     retry_errors: bool = False,
-    workflow: WorkflowConfig | None = None,
-    download: bool | None = None,
-    backend_factory: BackendFactory | None = None,
+    pipeline: Pipeline | None = None,
     on_prediction: ProgressCallback | None = None,
 ) -> dict[str, object]:
     """Finish a run with the same samples and configuration.
@@ -287,25 +286,21 @@ def resume_run(
         run_directory: Existing run.
         data_directory: Root of prepared datasets.
         retry_errors: Run failed samples again.
-        workflow: Parsed workflow overriding the recorded one, for tests.
-        download: Passed to Scribnic; False requires cached models.
-        backend_factory: Replaces model backends, for tests.
+        pipeline: Replaces the configured pipeline, for tests.
         on_prediction: Called after each sample.
 
     Returns:
         The run's results.
 
     Raises:
-        ValueError: If the workflow or a dataset changed.
+        ValueError: If the pipeline or a dataset changed.
     """
-    paths, plans, workflow = _load_run(run_directory, data_directory, workflow)
+    paths, plans, pipeline = _load_run(run_directory, data_directory, pipeline)
     return _execute(
         paths,
         plans,
-        workflow,
+        pipeline,
         retry_errors=retry_errors,
-        download=download,
-        backend_factory=backend_factory,
         on_prediction=on_prediction,
     )
 
@@ -314,8 +309,8 @@ def score_run(
     run_directory: Path,
     *,
     data_directory: Path = Path("data"),
-    workflow: WorkflowConfig | None = None,
+    pipeline: Pipeline | None = None,
 ) -> dict[str, object]:
-    """Recompute scores and results from saved predictions, without any model."""
-    paths, plans, _ = _load_run(run_directory, data_directory, workflow)
-    return _score_and_aggregate(paths, plans)
+    """Recompute scores, results, and the report, without running any model."""
+    paths, plans, pipeline = _load_run(run_directory, data_directory, pipeline)
+    return _score_and_report(paths, plans, pipeline)

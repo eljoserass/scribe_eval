@@ -17,7 +17,7 @@ class TerminalView:
     def on_prediction(self, prediction: Prediction, position: int, total: int) -> None:
         """Print one finished sample."""
         label = f"[{position}/{total}] {prediction.dataset}/{prediction.sample_id}"
-        seconds = f"{prediction.elapsed_seconds:.1f} s"
+        seconds = f"{prediction.telemetry.wall_seconds:.1f} s"
         if prediction.status == "success":
             self.progress.print(f"{label} ok, {seconds}", markup=False)
         else:

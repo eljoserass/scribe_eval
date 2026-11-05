@@ -7,7 +7,7 @@ each dataset's page, schema, or paper. Check licenses at the source before publi
 ## Common format
 
 `scribe-eval prepare` converts a dataset once. After that, a single loader reads them
-all. Artifacts use Scribnic's JSON.
+all. Artifacts are plain JSON.
 
 ```text
 data/primock57/

@@ -8,16 +8,19 @@ dependencies = [
     "jiwer>=4,<5",
     "num2words>=0.5,<1",
     "numpy>=2,<3",
+    "psutil>=7,<8",
     "rich>=15,<16",
-    "scribnic",
     "typer>=0.27,<0.28",
 ]
+
+[project.optional-dependencies]
+scribnic = ["scribnic"]
 
 [project.scripts]
 scribe-eval = "scribe_eval.cli:main"
 
 [dependency-groups]
-dev = ["ruff>=0.14,<1"]
+dev = ["ruff>=0.14,<1", "scribnic"]
 
 [tool.uv.sources]
 scribnic = { path = "../scribnic", editable = true }

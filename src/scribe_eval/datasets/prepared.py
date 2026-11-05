@@ -4,8 +4,13 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from scribnic import Artifact, ArtifactKind, AudioFile, load_artifact, save_artifact
-
+from ..artifacts import (
+    Artifact,
+    ArtifactKind,
+    AudioFile,
+    load_artifact,
+    save_artifact,
+)
 from ..storage import read_json, write_json
 from ..types import Sample
 

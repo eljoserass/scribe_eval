@@ -48,7 +48,8 @@ class ConfigTests(unittest.TestCase):
     def test_only_one_selector(self):
         text = """
         name = "e"
-        workflow = "x"
+        [pipeline]
+        type = "x"
         [[datasets]]
         name = "d"
         split = "all"

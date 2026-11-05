@@ -5,13 +5,12 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from scribnic import WorkflowRunError
 
 from .application import prepare_dataset, resume_run, run_experiment, score_run
 from .terminal import TerminalView
 
 app = typer.Typer(
-    help="Evaluate Scribnic workflows on clinical datasets.",
+    help="Evaluate clinical scribes on datasets.",
     no_args_is_help=True,
     pretty_exceptions_enable=False,
 )
@@ -20,17 +19,11 @@ DataOption = Annotated[
     Path | None,
     typer.Option(help="Prepared datasets. Defaults to $SCRIBE_EVAL_DATA, then data/"),
 ]
-OfflineOption = Annotated[bool, typer.Option("--offline", help="Require cached models")]
 
 
 def _data_directory(option: Path | None) -> Path:
     """Pick the data root."""
     return option or Path(os.getenv("SCRIBE_EVAL_DATA", "data"))
-
-
-def _download(offline: bool) -> bool | None:
-    """Translate the offline flag into Scribnic's download setting."""
-    return False if offline else None
 
 
 def _fail(error: Exception) -> typer.Exit:
@@ -68,7 +61,6 @@ def run(
     output_dir: Annotated[Path | None, typer.Option(help="Exact run directory")] = None,
     runs_dir: Annotated[Path, typer.Option(help="Parent of new runs")] = Path("runs"),
     data_dir: DataOption = None,
-    offline: OfflineOption = False,
 ) -> None:
     """Run an experiment and score it."""
     view = TerminalView()
@@ -78,16 +70,15 @@ def run(
             data_directory=_data_directory(data_dir),
             runs_directory=runs_dir,
             run_directory=output_dir,
-            download=_download(offline),
             on_prediction=view.on_prediction,
         )
-    except (ValueError, OSError, RuntimeError, WorkflowRunError) as error:
+    except (ValueError, OSError, RuntimeError) as error:
         raise _fail(error) from error
     except KeyboardInterrupt:
         view.progress.print("Interrupted. Continue with `scribe-eval resume`.")
         raise typer.Exit(130) from None
     view.results(results)
-    print(f"Run: {directory}")
+    print(f"Report: {directory / 'report.html'}")
 
 
 @app.command()
@@ -98,7 +89,6 @@ def resume(
         bool, typer.Option("--retry-errors", help="Run failed samples again")
     ] = False,
     data_dir: DataOption = None,
-    offline: OfflineOption = False,
 ) -> None:
     """Finish a run with the same samples and configuration."""
     view = TerminalView()
@@ -107,10 +97,9 @@ def resume(
             run_directory,
             data_directory=_data_directory(data_dir),
             retry_errors=retry_errors,
-            download=_download(offline),
             on_prediction=view.on_prediction,
         )
-    except (ValueError, OSError, RuntimeError, WorkflowRunError) as error:
+    except (ValueError, OSError, RuntimeError) as error:
         raise _fail(error) from error
     except KeyboardInterrupt:
         view.progress.print("Interrupted. Continue with `scribe-eval resume`.")
@@ -129,7 +118,9 @@ def score(
         results = score_run(run_directory, data_directory=_data_directory(data_dir))
     except (ValueError, OSError) as error:
         raise _fail(error) from error
-    TerminalView().results(results)
+    view = TerminalView()
+    view.results(results)
+    print(f"Report: {Path(run_directory).resolve() / 'report.html'}")
 
 
 def main() -> None:

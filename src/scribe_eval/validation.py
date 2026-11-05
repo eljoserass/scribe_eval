@@ -1,14 +1,12 @@
-"""Check that a dataset, a workflow, and metrics fit before loading any model."""
+"""Check that a dataset, a pipeline, and metrics fit before loading any model."""
 
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from scribnic import ArtifactKind, WorkflowConfig
-from scribnic.planning import resolve_plan
-
 from .config import DatasetEntry
 from .datasets.prepared import PreparedDataset
 from .metrics import resolve_metrics
+from .pipelines import Pipeline
 from .selection import select_ids
 from .types import Metric, satisfies
 
@@ -24,44 +22,33 @@ class DatasetPlan:
     not_applicable: dict[str, str]
 
 
-def produced_kinds(
-    workflow: WorkflowConfig, input_kind: ArtifactKind
-) -> set[ArtifactKind]:
-    """List what a workflow produces from an input, excluding the input itself.
-
-    Raises:
-        ValueError: If the workflow does not accept the input.
-    """
-    plan = resolve_plan(workflow, input_kind, workflow.default_output)
-    return {planned.step.model.output for planned in plan}
-
-
 def plan_dataset(
     entry: DatasetEntry,
     dataset: PreparedDataset,
-    workflow: WorkflowConfig,
+    pipeline: Pipeline,
     *,
     sample_ids: Sequence[str] | None = None,
 ) -> DatasetPlan:
-    """Validate one dataset entry against its data and workflow.
+    """Validate one dataset entry against its data and pipeline.
 
     Args:
         entry: The experiment's dataset settings.
         dataset: Prepared data on disk.
-        workflow: Workflow under evaluation.
+        pipeline: Pipeline under evaluation.
         sample_ids: Frozen IDs when resuming; selected from `entry` otherwise.
 
     Returns:
-        The plan. A metric the workflow cannot satisfy is listed as not applicable.
+        The plan. A metric the pipeline cannot satisfy is listed as not applicable.
 
     Raises:
-        ValueError: If the dataset lacks the input or a reference a metric needs.
+        ValueError: If the dataset lacks the input or a reference a metric needs,
+            or the pipeline doesn't accept the input.
     """
     if entry.split not in dataset.splits:
         raise ValueError(f"Dataset {dataset.name!r} has no split {entry.split!r}.")
     if not satisfies(dataset.provides, entry.input):
         raise ValueError(f"Dataset {dataset.name!r} has no {entry.input!r} input.")
-    produced = produced_kinds(workflow, entry.input)
+    produced = pipeline.produces(entry.input)
 
     metrics = []
     not_applicable = {}
@@ -75,8 +62,7 @@ def plan_dataset(
         missing = [k for k in metric.requires.predicted if not satisfies(produced, k)]
         if missing:
             not_applicable[metric.name] = (
-                f"{workflow.name} does not produce {', '.join(missing)} "
-                f"from {entry.input}"
+                f"the pipeline does not produce {', '.join(missing)} from {entry.input}"
             )
         else:
             metrics.append(metric)

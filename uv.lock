@@ -676,14 +676,20 @@ dependencies = [
     { name = "jiwer" },
     { name = "num2words" },
     { name = "numpy" },
+    { name = "psutil" },
     { name = "rich" },
-    { name = "scribnic" },
     { name = "typer" },
+]
+
+[package.optional-dependencies]
+scribnic = [
+    { name = "scribnic" },
 ]
 
 [package.dev-dependencies]
 dev = [
     { name = "ruff" },
+    { name = "scribnic" },
 ]
 
 [package.metadata]
@@ -691,13 +697,18 @@ requires-dist = [
     { name = "jiwer", specifier = ">=4,<5" },
     { name = "num2words", specifier = ">=0.5,<1" },
     { name = "numpy", specifier = ">=2,<3" },
+    { name = "psutil", specifier = ">=7,<8" },
     { name = "rich", specifier = ">=15,<16" },
-    { name = "scribnic", editable = "../scribnic" },
+    { name = "scribnic", marker = "extra == 'scribnic'", editable = "../scribnic" },
     { name = "typer", specifier = ">=0.27,<0.28" },
 ]
+provides-extras = ["scribnic"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "ruff", specifier = ">=0.14,<1" }]
+dev = [
+    { name = "ruff", specifier = ">=0.14,<1" },
+    { name = "scribnic", editable = "../scribnic" },
+]
 
 [[package]]
 name = "scribnic"

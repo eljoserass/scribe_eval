@@ -4,7 +4,8 @@ from collections.abc import Container, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Literal, Protocol
 
-from scribnic import Artifact, ArtifactKind, DiarizedTranscript
+from .artifacts import Artifact, ArtifactKind, DiarizedTranscript
+from .telemetry import SampleTelemetry
 
 
 def find_artifact(
@@ -60,9 +61,7 @@ class Prediction:
     status: Literal["success", "error"]
     error: str | None
     artifacts: dict[ArtifactKind, Artifact]
-    steps: tuple[dict[str, object], ...]
-    resources: dict[str, object]
-    elapsed_seconds: float
+    telemetry: SampleTelemetry
     run_directory: str
 
     @property

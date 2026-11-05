@@ -2,18 +2,19 @@
 
 import unittest
 
-from scribnic import Note, Transcript
-
+from scribe_eval.artifacts import Note, Transcript
 from scribe_eval.metrics import METRICS, resolve_metrics
 from scribe_eval.metrics.note_format import section_positions
 from scribe_eval.metrics.text import normalize_text
+from scribe_eval.telemetry import ModelUsage, Phase, ProcessUsage, SampleTelemetry
 from scribe_eval.types import Prediction, Sample, Score
 
 
-def prediction(**artifacts) -> Prediction:
+def prediction(input_kind="audio", telemetry=None, **artifacts) -> Prediction:
     """Build a successful prediction."""
+    telemetry = telemetry or SampleTelemetry(wall_seconds=2.0)
     return Prediction(
-        "d", "s", "clean", 0, "audio", "success", None, artifacts, (), {}, 2.0, "x"
+        "d", "s", "clean", 0, input_kind, "success", None, artifacts, telemetry, "x"
     )
 
 
@@ -86,13 +87,59 @@ class ResourceTests(unittest.TestCase):
     def test_real_time_factor_only_applies_to_audio_input(self):
         metric = METRICS["real_time_factor"]
         self.assertEqual(metric.score(prediction(), sample()).value, 0.5)
-        text_input = Prediction(
-            "d", "s", "clean", 0, "transcript", "success", None, {}, (), {}, 2.0, "x"
-        )
-        self.assertIsNone(metric.score(text_input, sample()))
+        self.assertIsNone(metric.score(prediction("transcript"), sample()))
 
     def test_missing_token_usage_is_skipped(self):
         self.assertIsNone(METRICS["prompt_tokens"].score(prediction(), sample()))
+
+
+class TelemetryMetricTests(unittest.TestCase):
+    def rich_prediction(self) -> Prediction:
+        """Build a prediction from a pipeline that reports everything."""
+        telemetry = SampleTelemetry(
+            wall_seconds=4.5,
+            phases=(
+                Phase("transcription", 3.0),
+                Phase("note", 1.0),
+                Phase("generation", 0.5, parent="note"),
+            ),
+            processes=(ProcessUsage("asr", 5, 4.0), ProcessUsage("llm", 9, 1.0)),
+            models=(ModelUsage("note", 10, 5, 100.0, 20.5),),
+        )
+        return prediction(telemetry=telemetry)
+
+    def test_phases_stay_separate(self):
+        metric = METRICS["phase_seconds"]
+        result = metric.aggregate([metric.score(self.rich_prediction(), sample())])
+        self.assertEqual(result["transcription"], 3.0)
+        self.assertEqual(result["generation"], 0.5)
+
+    def test_outside_time_comes_from_the_harness(self):
+        score = METRICS["elapsed_seconds"].score(self.rich_prediction(), sample())
+        self.assertEqual(score.value, 4.5)
+
+    def test_memory_is_reported_per_process(self):
+        metric = METRICS["process_peak_rss_bytes"]
+        score = metric.score(self.rich_prediction(), sample())
+        self.assertEqual(score.value, 9)
+        self.assertEqual(metric.aggregate([score])["asr"], 5)
+
+    def test_speed_and_tokens_read_the_contract(self):
+        speed = METRICS["generation_tokens_per_second"]
+        self.assertEqual(speed.score(self.rich_prediction(), sample()).value, 20.5)
+        self.assertEqual(
+            METRICS["prompt_tokens"].score(self.rich_prediction(), sample()).value, 10
+        )
+
+    def test_a_pipeline_without_telemetry_only_loses_those_metrics(self):
+        for name in ("phase_seconds", "process_cpu_cores", "prompt_tokens"):
+            self.assertIsNone(METRICS[name].score(prediction(), sample()))
+        self.assertIsNone(
+            METRICS["generation_tokens_per_second"].score(prediction(), sample())
+        )
+        self.assertEqual(
+            METRICS["elapsed_seconds"].score(prediction(), sample()).value, 2.0
+        )
 
 
 class RegistryTests(unittest.TestCase):

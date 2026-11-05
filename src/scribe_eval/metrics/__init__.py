@@ -5,7 +5,16 @@ from collections.abc import Iterable
 from ..types import Metric
 from .note_format import NoteWords, SoapSections
 from .note_reference import RougeL
-from .resources import ElapsedSeconds, PeakMemory, RealTimeFactor, Tokens
+from .resources import (
+    ElapsedSeconds,
+    PeakMemory,
+    PhaseSeconds,
+    ProcessCpu,
+    ProcessMemory,
+    RealTimeFactor,
+    Throughput,
+    Tokens,
+)
 from .transcription import CHARACTER_ERROR_RATE, WORD_ERROR_RATE
 
 _ALL: tuple[Metric, ...] = (
@@ -17,6 +26,11 @@ _ALL: tuple[Metric, ...] = (
     ElapsedSeconds(),
     RealTimeFactor(),
     PeakMemory(),
+    PhaseSeconds(),
+    ProcessMemory(),
+    ProcessCpu(),
+    Throughput("prefill_tokens_per_second"),
+    Throughput("generation_tokens_per_second"),
     Tokens("prompt_tokens"),
     Tokens("completion_tokens"),
 )
