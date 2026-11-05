@@ -1,0 +1,9 @@
+# One Spanish sample through the full pipeline. Its reference note is a fixture.
+name = "smoke"
+workflow = "whisper_bonsai"
+
+[[datasets]]
+name = "smoke"
+split = "all"
+input = "audio"
+metrics = ["transcription", "note_format", "note_reference", "resources"]
