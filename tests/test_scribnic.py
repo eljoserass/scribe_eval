@@ -130,6 +130,7 @@ class TelemetryTests(unittest.TestCase):
         self.assertEqual(
             runtime_device({"argv": ["x", "--device", "cuda"]}), "accelerator"
         )
+        self.assertIsNone(runtime_device({"argv": ["x", "--device", "auto"]}))
         self.assertIsNone(runtime_device({"argv": ["x"]}))
         self.assertIsNone(runtime_device(None))
 
