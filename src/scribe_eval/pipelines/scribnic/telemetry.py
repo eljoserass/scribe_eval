@@ -34,6 +34,8 @@ def runtime_device(runtime: dict | None) -> str | None:
     for flag in ("-ngl", "--device"):
         if flag in argv:
             value = argv[argv.index(flag) + 1]
+            if value == "auto":
+                return None
             return "cpu" if value in ("0", "cpu") else "accelerator"
     return None
 
