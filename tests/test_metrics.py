@@ -14,7 +14,17 @@ def prediction(input_kind="audio", telemetry=None, **artifacts) -> Prediction:
     """Build a successful prediction."""
     telemetry = telemetry or SampleTelemetry(wall_seconds=2.0)
     return Prediction(
-        "d", "s", "clean", 0, input_kind, "success", None, artifacts, telemetry, "x"
+        "d",
+        "s",
+        "clean",
+        0,
+        input_kind,
+        "success",
+        None,
+        artifacts,
+        telemetry,
+        "x",
+        "t",
     )
 
 

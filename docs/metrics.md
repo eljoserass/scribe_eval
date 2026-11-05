@@ -41,9 +41,8 @@ metric or a whole group. Nothing here measures clinical safety yet.
   work for every pipeline, because the harness measures them. The rest are `n/a` when
   a pipeline doesn't report them. Memory is sampled RSS and may double count shared
   pages. Model loading is in `startup.jsonl`, not here.
-- **Peak memory depends on order.** Processes stay loaded across samples, so a sample
-  inherits what earlier ones left. Peaks within a run don't isolate the effect of
-  consultation length.
+- **Peak memory needs isolation.** With `isolate_samples = false`, a sample inherits
+  what earlier ones left, so peaks mix consultation length with order.
 
 ## ROUGE is a diagnostic
 

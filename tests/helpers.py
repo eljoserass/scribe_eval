@@ -27,6 +27,7 @@ class FakePipeline:
         self.interrupt_after = interrupt_after
         self.version = version
         self.runs = 0
+        self.opens = 0
         self.opened = False
 
     def describe(self) -> dict[str, object]:
@@ -44,6 +45,7 @@ class FakePipeline:
     @contextmanager
     def open(self, telemetry_directory: Path) -> Iterator[None]:
         """Pretend to hold resources."""
+        self.opens += 1
         self.opened = True
         yield
         self.opened = False

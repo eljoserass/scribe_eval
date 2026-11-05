@@ -100,6 +100,7 @@ def _manifest(
         "experiment_sha256": sha256_text(text),
         "experiment_directory": str(base_directory),
         "pipeline_type": experiment.pipeline_type,
+        "isolate_samples": experiment.isolate_samples,
         "pipeline_sha256": _pipeline_hash(pipeline),
         "pipeline": pipeline.describe(),
         "hardware": describe_hardware(),
@@ -168,6 +169,7 @@ def _execute(
     plans: tuple[DatasetPlan, ...],
     pipeline: Pipeline,
     *,
+    isolate_samples: bool,
     retry_errors: bool,
     on_prediction: ProgressCallback | None,
 ) -> dict[str, object]:
@@ -182,7 +184,12 @@ def _execute(
     _write_status(paths, plans, "running")
     try:
         run_inference(
-            paths, plans, pipeline, retry_errors=retry_errors, on_prediction=track
+            paths,
+            plans,
+            pipeline,
+            isolate_samples=isolate_samples,
+            retry_errors=retry_errors,
+            on_prediction=track,
         )
         _write_status(paths, plans, "completed")
         return _score_and_report(paths, plans, pipeline)
@@ -243,7 +250,12 @@ def run_experiment(
     write_json(paths.manifest, manifest)
 
     results = _execute(
-        paths, plans, pipeline, retry_errors=False, on_prediction=on_prediction
+        paths,
+        plans,
+        pipeline,
+        isolate_samples=experiment.isolate_samples,
+        retry_errors=False,
+        on_prediction=on_prediction,
     )
     return root, results
 
@@ -300,6 +312,7 @@ def resume_run(
         paths,
         plans,
         pipeline,
+        isolate_samples=load_experiment(paths.experiment).isolate_samples,
         retry_errors=retry_errors,
         on_prediction=on_prediction,
     )

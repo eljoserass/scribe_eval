@@ -63,6 +63,7 @@ class Prediction:
     artifacts: dict[ArtifactKind, Artifact]
     telemetry: SampleTelemetry
     run_directory: str
+    telemetry_directory: str
 
     @property
     def key(self) -> tuple[str, str, int]:

@@ -44,6 +44,9 @@ uv run scribe-eval prepare primock57 --limit 3
 uv run scribe-eval run experiments/primock57_sample.toml
 ```
 
+The PriMock57 experiments point to a local English Scribnic workflow in `workflows/`.
+Pipeline configuration isn't part of the harness, so that folder isn't versioned.
+
 Each run lands in `runs/`, with a `report.html`. To continue or rescore one:
 
 ```bash
