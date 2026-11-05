@@ -32,6 +32,16 @@ def _text(artifacts: dict, kind: str) -> str | None:
     return None if artifact is None else artifact.text
 
 
+def _memory_edges(series: tuple[MemorySeries, ...]) -> dict[str, int | None]:
+    """Add up what all processes held when a sample started and ended."""
+    if not series:
+        return {"start": None, "end": None}
+    return {
+        "start": sum(entry.bytes[0] for entry in series if entry.bytes),
+        "end": sum(entry.bytes[-1] for entry in series if entry.bytes),
+    }
+
+
 def _sample_view(
     prediction: Prediction,
     sample: Sample,
@@ -60,6 +70,8 @@ def _sample_view(
         ],
         "memory": [_downsample(entry) for entry in timeline.memory],
         "windows": timeline.windows,
+        "started_at": timeline.started_at,
+        "memory_edges": _memory_edges(timeline.memory),
         "scores": scores,
         "note": _text(prediction.artifacts, "note"),
         "reference_note": _text(sample.artifacts, "note"),

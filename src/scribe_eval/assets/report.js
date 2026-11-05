@@ -92,49 +92,79 @@ function frame(width, height, xMax, yMax, xLabel, yFormat) {
   return { chart, x, y, margin, plot };
 }
 
-/* RAM over one sample: one line per process, plus the total, phases as bands. */
-function memoryChart(sample, colors) {
-  const series = sample.memory;
-  if (!series.length) return el("p", { class: "muted" }, "No memory series for this sample.");
+/* Last value of a series at a time, by binary search. */
+function valueAt(entry, time) {
+  let low = 0;
+  let high = entry.seconds.length - 1;
+  let found = -1;
+  while (low <= high) {
+    const middle = (low + high) >> 1;
+    if (entry.seconds[middle] <= time) { found = middle; low = middle + 1; } else high = middle - 1;
+  }
+  return found < 0 ? 0 : entry.bytes[found];
+}
+
+/* RAM over time: one line per process, plus the total, with labelled bands. */
+function memoryChart(series, windows, colors, xLabel, bandLabels = true) {
+  if (!series.length) return el("p", { class: "muted" }, "No memory series.");
   const times = [...new Set(series.flatMap((entry) => entry.seconds))].sort((a, b) => a - b);
-  const valueAt = (entry, time) => {
-    let value = 0;
-    for (let i = 0; i < entry.seconds.length && entry.seconds[i] <= time; i++) value = entry.bytes[i];
-    return value;
-  };
-  const totals = times.map((time) => series.reduce((sum, entry) => sum + valueAt(entry, time), 0));
+  const stride = Math.max(1, Math.floor(times.length / 500));
+  const shown = times.filter((_, index) => index % stride === 0);
+  const total = (time) => series.reduce((sum, entry) => sum + valueAt(entry, time), 0);
+  const totals = shown.map(total);
   const xMax = niceMax(times[times.length - 1]);
   const yMax = niceMax(Math.max(...totals));
-  const f = frame(960, 300, xMax, yMax, "Seconds since the sample started", (v) => (v / 1e9).toFixed(1) + " GB");
-  for (const [name, start, end] of sample.windows) {
+  const f = frame(960, 300, xMax, yMax, xLabel, (v) => (v / 1e9).toFixed(1) + " GB");
+  windows.forEach(([name, start, end], index) => {
+    if (index % 2 && !bandLabels) return;
     f.chart.append(svg("rect", { class: "band", x: f.x(start), y: f.margin.top, width: Math.max(f.x(end) - f.x(start) - 2, 0), height: f.plot.h }));
-    f.chart.append(svg("text", { x: f.x(start) + 6, y: f.margin.top + 14 }, name));
-  }
+    if (bandLabels) f.chart.append(svg("text", { x: f.x(start) + 6, y: f.margin.top + 14 }, name));
+  });
   const path = (xs, ys) => xs.map((time, i) => `${i ? "L" : "M"}${f.x(time).toFixed(1)} ${f.y(ys[i]).toFixed(1)}`).join("");
-  f.chart.append(svg("path", { d: path(times, totals), fill: "none", stroke: "var(--text)", "stroke-width": 2, "stroke-dasharray": "5 4" }));
+  f.chart.append(svg("path", { d: path(shown, totals), fill: "none", stroke: "var(--text)", "stroke-width": 2, "stroke-dasharray": "5 4" }));
   for (const entry of series) {
-    f.chart.append(svg("path", { d: path(entry.seconds, entry.bytes), fill: "none", stroke: colors.get(entry.process), "stroke-width": 2, "stroke-linejoin": "round" }));
+    f.chart.append(svg("path", { d: path(shown, shown.map((time) => valueAt(entry, time))), fill: "none", stroke: colors.get(entry.process), "stroke-width": 2, "stroke-linejoin": "round" }));
   }
   const hair = svg("line", { class: "hair", y1: f.margin.top, y2: f.margin.top + f.plot.h, visibility: "hidden" });
   f.chart.append(hair);
   const hit = svg("rect", { x: f.margin.left, y: f.margin.top, width: f.plot.w, height: f.plot.h, fill: "transparent" });
   hit.addEventListener("pointermove", (event) => {
     const box = f.chart.getBoundingClientRect();
-    const scale = 960 / box.width;
-    const pointer = ((event.clientX - box.left) * scale - f.margin.left) / f.plot.w * xMax;
-    const time = times.reduce((best, value) => Math.abs(value - pointer) < Math.abs(best - pointer) ? value : best, times[0]);
+    const pointer = ((event.clientX - box.left) * (960 / box.width) - f.margin.left) / f.plot.w * xMax;
+    const time = shown.reduce((best, value) => Math.abs(value - pointer) < Math.abs(best - pointer) ? value : best, shown[0]);
+    const window = windows.find(([, start, end]) => time >= start && time <= end);
     hair.setAttribute("x1", f.x(time));
     hair.setAttribute("x2", f.x(time));
     hair.setAttribute("visibility", "visible");
     showTip(event, [
-      ["at this time", secs(time)],
+      [window ? window[0] : "", secs(time)],
       ...series.map((entry) => [entry.process, gb(valueAt(entry, time)), colors.get(entry.process)]),
-      ["total", gb(series.reduce((sum, entry) => sum + valueAt(entry, time), 0)), "var(--text)"],
+      ["total", gb(total(time)), "var(--text)"],
     ]);
   });
   hit.addEventListener("pointerleave", () => { hair.setAttribute("visibility", "hidden"); hideTip(); });
   f.chart.append(hit);
   return el("div", {}, el("div", { class: "scroll" }, f.chart), legend([...series.map((entry) => [entry.process, colors.get(entry.process)]), ["total (dashed)", "var(--text)"]]));
+}
+
+/* Join every sample on one clock, to see memory across the whole run. */
+function wholeRun(samples) {
+  const timed = samples.filter((sample) => sample.started_at && sample.memory.length).sort((a, b) => a.started_at - b.started_at);
+  if (!timed.length) return { series: [], windows: [] };
+  const origin = timed[0].started_at;
+  const byProcess = new Map();
+  const windows = [];
+  for (const sample of timed) {
+    const offset = sample.started_at - origin;
+    windows.push([sample.id, offset, offset + sample.wall_seconds]);
+    for (const entry of sample.memory) {
+      if (!byProcess.has(entry.process)) byProcess.set(entry.process, { process: entry.process, seconds: [], bytes: [] });
+      const target = byProcess.get(entry.process);
+      target.seconds.push(...entry.seconds.map((value) => value + offset));
+      target.bytes.push(...entry.bytes);
+    }
+  }
+  return { series: [...byProcess.values()], windows };
 }
 
 /* Peak RAM against a length measure, one dot per sample and process. */
@@ -225,10 +255,12 @@ function samplesTable(samples) {
     number(sample.audio_minutes),
     sample.scores.wer === undefined ? "—" : (sample.scores.wer * 100).toFixed(1) + "%",
     secs(sample.wall_seconds),
+    sample.memory_edges.start ? gb(sample.memory_edges.start) : "—",
+    sample.memory_edges.end ? gb(sample.memory_edges.end) : "—",
     sample.peak_rss_bytes ? gb(sample.peak_rss_bytes) : "—",
     number(sample.prompt_tokens),
   ]);
-  return table(["Sample", "Status", "Audio (min)", "WER", "Time", "Peak RAM", "Prompt tokens"], rows, [2, 3, 4, 5, 6]);
+  return table(["Sample", "Status", "Audio (min)", "WER", "Time", "RAM start", "RAM end", "Peak RAM", "Prompt tokens"], rows, [2, 3, 4, 5, 6, 7, 8]);
 }
 
 function noteDetails(sample) {
@@ -250,7 +282,7 @@ function datasetSection(name, dataset) {
     [String(dataset.n_failed), "Failed"],
     ...(dataset.metrics.wer ? [[metricValue("wer", "global", dataset.metrics.wer.global), "WER"]] : []),
     ...(dataset.metrics.real_time_factor ? [[dataset.metrics.real_time_factor.global.toFixed(2), "Real-time factor"]] : []),
-    ...(dataset.metrics.peak_rss_bytes ? [[gb(dataset.metrics.peak_rss_bytes.max), "Peak RAM, all processes"]] : []),
+    ...(dataset.metrics.peak_rss_bytes ? [[gb(dataset.metrics.peak_rss_bytes.max), "Peak RAM, pipeline"]] : []),
   ]));
   for (const [id, error] of Object.entries(dataset.failures)) {
     section.append(el("p", { class: "failed" }, `Failed · ${id}: ${error}`));
@@ -260,14 +292,22 @@ function datasetSection(name, dataset) {
 
   const processes = [...new Set(samples.flatMap((sample) => sample.processes.map((entry) => entry.name)))];
   const colors = colorMap(processes);
+  const run = wholeRun(samples);
+  if (run.series.length) {
+    const note = data.isolate_samples ? "Each sample ran in fresh processes." : "Models stayed loaded. Memory that keeps climbing across samples is being retained.";
+    section.append(el("h3", {}, "RAM across the run"), el("p", { class: "muted small" }, note), memoryChart(run.series, run.windows, colors, "Seconds since the first sample", false));
+  }
   const withMemory = samples.filter((sample) => sample.memory.length);
   if (withMemory.length) {
     const holder = el("div");
     const picker = el("select", { "aria-label": "Sample" }, ...withMemory.map((sample, index) => el("option", { value: index }, sample.id)));
-    const draw = () => holder.replaceChildren(memoryChart(withMemory[picker.value], colors));
+    const draw = () => {
+      const sample = withMemory[picker.value];
+      holder.replaceChildren(memoryChart(sample.memory, sample.windows, colors, "Seconds since the sample started"));
+    };
     picker.addEventListener("change", draw);
     draw();
-    section.append(el("h3", {}, "RAM during a sample"), el("p", { class: "muted small" }, data.isolate_samples ? "Each sample ran in fresh processes." : "Processes stayed loaded between samples, so a sample starts from what earlier ones left."), el("p", {}, picker), holder);
+    section.append(el("h3", {}, "RAM during a sample"), el("p", {}, picker), holder);
   }
   section.append(el("h3", {}, "Peak RAM against length"));
   section.append(el("p", { class: "muted small" }, data.isolate_samples ? "One dot per sample and process. A flat line means memory doesn't grow with the consultation." : "One dot per sample and process. Samples share processes, so order affects these peaks as well as length."));

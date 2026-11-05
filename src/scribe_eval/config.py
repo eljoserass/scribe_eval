@@ -41,7 +41,7 @@ class ExperimentConfig:
     pipeline_type: str
     pipeline_settings: dict[str, object]
     datasets: tuple[DatasetEntry, ...]
-    isolate_samples: bool = True
+    isolate_samples: bool = False
 
 
 def _check_keys(data: dict, allowed: set[str], label: str) -> None:
@@ -104,5 +104,5 @@ def load_experiment(path: str | Path) -> ExperimentConfig:
         raise ValueError("An experiment needs at least one dataset.")
     if len(names) != len(set(names)):
         raise ValueError("Each dataset can appear only once in an experiment.")
-    isolate_samples = data.get("isolate_samples", True)
+    isolate_samples = data.get("isolate_samples", False)
     return ExperimentConfig(name, pipeline_type, settings, datasets, isolate_samples)

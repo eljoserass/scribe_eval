@@ -135,6 +135,16 @@ def memory_series(
     return tuple(series)
 
 
+def started_at(directories: Iterable[Path], telemetry: SampleTelemetry) -> float | None:
+    """Find when a sample started, in Unix seconds."""
+    starts = [
+        span.start_ns
+        for span in read_spans(directories)
+        if span.trace_id == telemetry.trace_id
+    ]
+    return min(starts) / 1e9 if starts else None
+
+
 def phase_windows(
     directories: Iterable[Path], telemetry: SampleTelemetry
 ) -> tuple[tuple[str, float, float], ...]:

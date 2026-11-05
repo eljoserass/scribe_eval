@@ -67,22 +67,22 @@ class RunTests(unittest.TestCase):
         self.assertEqual(manifest["datasets"]["tiny"]["sample_ids"], ["a", "b", "c"])
         self.assertIn("accelerators", manifest["hardware"])
 
-    def test_samples_are_isolated_by_default(self):
+    def test_the_pipeline_stays_open_by_default(self):
+        pipeline = FakePipeline()
+        self.run_it(pipeline)
+        self.assertEqual(pipeline.opens, 1)
+        self.assertEqual(self.json("manifest.json")["isolate_samples"], False)
+
+    def test_isolated_samples_reopen_the_pipeline(self):
+        text = EXPERIMENT.replace(
+            'name = "tiny"\n', 'name = "tiny"\nisolate_samples = true\n', 1
+        )
+        self.experiment.write_text(text, encoding="utf-8")
         pipeline = FakePipeline()
         self.run_it(pipeline)
         self.assertEqual(pipeline.opens, 3)
         folders = {row["telemetry_directory"] for row in self.rows("predictions")}
         self.assertEqual(len(folders), 3)
-
-    def test_a_shared_run_opens_the_pipeline_once(self):
-        text = EXPERIMENT.replace(
-            'name = "tiny"\n', 'name = "tiny"\nisolate_samples = false\n', 1
-        )
-        self.experiment.write_text(text, encoding="utf-8")
-        pipeline = FakePipeline()
-        self.run_it(pipeline)
-        self.assertEqual(pipeline.opens, 1)
-        self.assertEqual(self.json("manifest.json")["isolate_samples"], False)
 
     def test_the_harness_times_samples_from_the_outside(self):
         self.run_it(FakePipeline())

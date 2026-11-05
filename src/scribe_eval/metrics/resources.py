@@ -8,6 +8,7 @@ from ..types import Prediction, Requires, Sample, Score
 from .text import mean_values
 
 _GROUP = "resources"
+_AUDIO = "audio_seconds"
 
 
 def _mean_by_key(scores: Sequence[Score]) -> dict[str, float]:
@@ -63,6 +64,35 @@ class RealTimeFactor:
         wall = sum(score.details["wall"] for score in scores)
         audio = sum(score.details["audio"] for score in scores)
         return {"global": wall / audio}
+
+
+@dataclass(frozen=True)
+class PhaseRealTimeFactor:
+    """Each phase's time per second of audio, to see what actually scales with it."""
+
+    name: str = "phase_real_time_factor"
+    group: str = _GROUP
+    version: int = 1
+    requires: Requires = Requires((), ("audio",))
+
+    def score(self, prediction: Prediction, sample: Sample) -> Score | None:
+        """Keep each phase's time next to the audio's length."""
+        phases = {phase.name: phase.seconds for phase in prediction.telemetry.phases}
+        if prediction.input_kind != "audio" or not phases:
+            return None
+        seconds = float(sample.metadata["audio_seconds"])
+        return Score(
+            self.name, sum(phases.values()) / seconds, {**phases, _AUDIO: seconds}
+        )
+
+    def aggregate(self, scores: Sequence[Score]) -> dict[str, float]:
+        """Divide each phase's total time by total audio."""
+        audio = sum(score.details[_AUDIO] for score in scores)
+        names = {name for score in scores for name in score.details} - {_AUDIO}
+        return {
+            name: sum(score.details.get(name, 0.0) for score in scores) / audio
+            for name in sorted(names)
+        }
 
 
 @dataclass(frozen=True)

@@ -124,6 +124,11 @@ class TelemetryMetricTests(unittest.TestCase):
         self.assertEqual(result["transcription"], 3.0)
         self.assertEqual(result["generation"], 0.5)
 
+    def test_phase_ratio_divides_total_time_by_total_audio(self):
+        metric = METRICS["phase_real_time_factor"]
+        score = metric.score(self.rich_prediction(), sample())
+        self.assertEqual(metric.aggregate([score])["transcription"], 0.75)
+
     def test_outside_time_comes_from_the_harness(self):
         score = METRICS["elapsed_seconds"].score(self.rich_prediction(), sample())
         self.assertEqual(score.value, 4.5)

@@ -111,12 +111,12 @@ Runs before any model loads. What a pipeline produces comes from `produces()`.
 
 ## Isolation
 
-Samples are independent by default. The harness reopens the pipeline for each one, so
-no cache or memory carries over, at the cost of a model load per sample. Load time
-isn't counted in a sample's timing.
+By default the pipeline stays open across samples, as in a deployment. Models load
+once, and the report shows RAM across the run, so memory a pipeline retains is visible.
 
-`isolate_samples = false` keeps the pipeline open across samples. Use it to measure a
-long-lived deployment, where carry-over is the point.
+`isolate_samples = true` reopens the pipeline for each sample, so nothing carries over,
+at the cost of a model load per sample. Use it to measure a sample on its own. Load time
+isn't counted in a sample's timing either way.
 
 Carry-over is real. Over 10 notes from 4 transcripts on one `llama-server`, its prompt
 cache took memory from 1.38 GB to 1.88 GB, and repeated prompts ran up to 4 times

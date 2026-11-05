@@ -123,7 +123,7 @@ def run_inference(
     plans: tuple[DatasetPlan, ...],
     pipeline: Pipeline,
     *,
-    isolate_samples: bool = True,
+    isolate_samples: bool = False,
     retry_errors: bool = False,
     on_prediction: ProgressCallback | None = None,
 ) -> None:
@@ -136,8 +136,7 @@ def run_inference(
         plans: Validated datasets.
         pipeline: Pipeline under evaluation.
         isolate_samples: Reopen the pipeline for each sample, so caches and memory
-            can't carry over. Costs a model load per sample. Turn it off to measure
-            how a long-lived deployment behaves.
+            can't carry over. By default it stays open, as in a deployment.
         retry_errors: Run failed samples again; the new row supersedes the old one.
         on_prediction: Called after each sample with the prediction, its position,
             and the number of pending samples.
