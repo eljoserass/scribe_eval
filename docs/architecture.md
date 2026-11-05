@@ -109,6 +109,19 @@ Runs before any model loads. What a pipeline produces comes from `produces()`.
 | Pipeline doesn't produce the artifact, like WER on audio-to-note | `n/a`, with the reason |
 | A transcript goes in and WER is requested | `n/a`, with the reason |
 
+## Isolation
+
+Samples are independent by default. The harness reopens the pipeline for each one, so
+no cache or memory carries over, at the cost of a model load per sample. Load time
+isn't counted in a sample's timing.
+
+`isolate_samples = false` keeps the pipeline open across samples. Use it to measure a
+long-lived deployment, where carry-over is the point.
+
+Carry-over is real. Over 10 notes from 4 transcripts on one `llama-server`, its prompt
+cache took memory from 1.38 GB to 1.88 GB, and repeated prompts ran up to 4 times
+faster. With the cache off, memory stayed at 1.38 GB and timings stayed honest.
+
 ## Runs
 
 Laid out like [HELM](https://crfm-helm.readthedocs.io/en/v0.5.3/tutorial/): spec,
@@ -122,7 +135,7 @@ runs/20261105-153000-primock57-sample-1a2b3c/
 ├── startup.jsonl        # model load times
 ├── results.json         # dataset × metric, overall, telemetry summary
 ├── report.html          # self-contained; includes notes, so treat it like the data
-├── telemetry/execution-1/  # OTLP export, if the pipeline writes one
+├── telemetry/execution-1/  # OTLP export, one folder per pipeline open
 └── datasets/primock57/
     ├── predictions.jsonl
     ├── scores.jsonl
@@ -153,8 +166,8 @@ Inside data has shared names, so runs compare: `transcription` and `note`, with
 `prefill` and `generation` nested under `note`. All of it is optional.
 
 `telemetry/otlp.py` reads OpenTelemetry JSONL, whoever exported it, and `results.json`
-adds time per span and machine memory. Each execution gets its own folder, so a resume
-never overwrites the last.
+adds time per span and machine memory. Each time the pipeline opens it gets its own
+folder, so nothing overwrites earlier telemetry.
 
 **Memory figures differ on purpose.** `peak_rss_bytes` is what the pipeline's processes
 hold, and it's the number to compare. `machine_memory_bytes` is everything on the
@@ -172,9 +185,8 @@ With one pipeline per run, nothing needs orchestrating. `manifest.json` records 
 
 ## Language
 
-Metrics use each dataset's language. Pipelines must match it: Scribnic's presets are
-Spanish, so English datasets use workflows from `workflows/`. English results validate
-the harness and the pipeline. They say nothing about quality in Spanish.
+Metrics use each dataset's language, and pipelines must match it. English results
+validate the harness and the pipeline. They say nothing about quality in Spanish.
 
 ## Layout
 

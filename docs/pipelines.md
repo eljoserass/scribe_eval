@@ -8,7 +8,7 @@ experiment. Datasets, metrics, resume, and reports then work as they are.
 class Pipeline(Protocol):
     def describe(self) -> dict: ...                 # effective config, with a "name"
     def produces(self, input_kind) -> set: ...      # what it makes from this input
-    def open(self, telemetry_directory): ...        # context manager holding resources
+    def open(self, telemetry_directory): ...        # holds resources; may run per sample
     def prepare(self, input_kind) -> dict: ...      # load models, return load times
     def run(self, source, output_directory) -> PipelineResult: ...
     def timeline(self, telemetry_directories, telemetry) -> Timeline: ...
@@ -61,6 +61,8 @@ summarized in `results.json`, whatever exported them.
 
 ## Rules
 
+- `open` can run once per sample, so closing must release everything. Anything left
+  running would break isolation.
 - Your package is imported only by your implementation. Built-ins live in
   `src/scribe_eval/pipelines/` and are optional extras.
 - A resumed run must `describe` itself identically, or resuming is refused.

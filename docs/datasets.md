@@ -73,9 +73,6 @@ Limits:
   `3/7 hx of diarrhea`. Lexical metrics will punish style as well as content.
 - **Input limit.** Scribnic rejects more than 12,000 characters. On clean transcripts
   that's 3 of 57 consultations, roughly 7 with speaker labels. These count as failures.
-- **Whisper timestamps.** Scribnic rejects a segment ending more than 0.5 s past the
-  audio. Whisper's timestamps can overshoot that: `day1_consultation03` ends at 545.0 s
-  on 544.32 s of audio, so the whole transcript is lost. Open until Scribnic handles it.
 
 `human_eval_data` is the hidden gem: 5 evaluators on notes from 10 models, with
 post-editing time and incorrect statements and omissions marked critical or not. It

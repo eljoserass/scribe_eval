@@ -267,10 +267,10 @@ function datasetSection(name, dataset) {
     const draw = () => holder.replaceChildren(memoryChart(withMemory[picker.value], colors));
     picker.addEventListener("change", draw);
     draw();
-    section.append(el("h3", {}, "RAM during a sample"), el("p", { class: "muted small" }, "Processes stay loaded between samples, so a sample starts from what earlier ones left."), el("p", {}, picker), holder);
+    section.append(el("h3", {}, "RAM during a sample"), el("p", { class: "muted small" }, data.isolate_samples ? "Each sample ran in fresh processes." : "Processes stayed loaded between samples, so a sample starts from what earlier ones left."), el("p", {}, picker), holder);
   }
   section.append(el("h3", {}, "Peak RAM against length"));
-  section.append(el("p", { class: "muted small" }, "One dot per sample and process. Samples share processes, so order affects these peaks as well as length."));
+  section.append(el("p", { class: "muted small" }, data.isolate_samples ? "One dot per sample and process. A flat line means memory doesn't grow with the consultation." : "One dot per sample and process. Samples share processes, so order affects these peaks as well as length."));
   section.append(el("div", { class: "pair" },
     el("div", {}, scatter(samples, "audio_minutes", "Audio (min)", colors)),
     el("div", {}, scatter(samples, "prompt_tokens", "Prompt tokens", colors))));

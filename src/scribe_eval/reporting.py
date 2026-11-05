@@ -7,7 +7,6 @@ from pathlib import Path
 from .pipelines import Pipeline, Timeline
 from .storage import RunPaths, latest_rows, load_prediction, read_json, read_jsonl
 from .telemetry import MemorySeries
-from .telemetry.otlp import execution_directories
 from .types import Prediction, Sample, find_artifact
 from .validation import DatasetPlan
 
@@ -69,7 +68,7 @@ def _sample_view(
 
 
 def _dataset_view(
-    paths: RunPaths, plan: DatasetPlan, directories: list[Path], pipeline: Pipeline
+    paths: RunPaths, plan: DatasetPlan, pipeline: Pipeline
 ) -> list[dict[str, object]]:
     """Collect every sample of one dataset."""
     name = plan.entry.name
@@ -81,7 +80,8 @@ def _dataset_view(
         prediction = load_prediction(paths.root, row)
         sample = plan.dataset.sample(prediction.sample_id)
         sample_scores = scores.get(prediction.sample_id, {})
-        timeline = pipeline.timeline(directories, prediction.telemetry)
+        directory = paths.root / prediction.telemetry_directory
+        timeline = pipeline.timeline([directory], prediction.telemetry)
         views.append(_sample_view(prediction, sample, sample_scores, timeline))
     return views
 
@@ -94,7 +94,6 @@ def report_data(
 ) -> dict[str, object]:
     """Gather what the report displays."""
     manifest = read_json(paths.manifest)
-    directories = execution_directories(paths.telemetry)
     datasets = {}
     for plan in plans:
         name = plan.entry.name
@@ -102,13 +101,14 @@ def report_data(
             **results["datasets"][name],
             "language": plan.dataset.language,
             "input": plan.entry.input,
-            "samples": _dataset_view(paths, plan, directories, pipeline),
+            "samples": _dataset_view(paths, plan, pipeline),
         }
     return {
         "name": manifest["name"],
         "created_at": manifest["created_at"],
         "pipeline": manifest["pipeline"].get("name", manifest["pipeline_type"]),
         "state": read_json(paths.status)["state"],
+        "isolate_samples": manifest["isolate_samples"],
         "hardware": manifest["hardware"],
         "versions": manifest["versions"],
         "compute": results["compute"],

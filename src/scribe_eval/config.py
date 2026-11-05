@@ -6,7 +6,7 @@ from pathlib import Path
 
 from .artifacts import ArtifactKind, artifact_kind
 
-_EXPERIMENT_KEYS = {"name", "pipeline", "datasets"}
+_EXPERIMENT_KEYS = {"name", "pipeline", "datasets", "isolate_samples"}
 _DATASET_KEYS = {
     "name",
     "split",
@@ -41,6 +41,7 @@ class ExperimentConfig:
     pipeline_type: str
     pipeline_settings: dict[str, object]
     datasets: tuple[DatasetEntry, ...]
+    isolate_samples: bool = True
 
 
 def _check_keys(data: dict, allowed: set[str], label: str) -> None:
@@ -103,4 +104,5 @@ def load_experiment(path: str | Path) -> ExperimentConfig:
         raise ValueError("An experiment needs at least one dataset.")
     if len(names) != len(set(names)):
         raise ValueError("Each dataset can appear only once in an experiment.")
-    return ExperimentConfig(name, pipeline_type, settings, datasets)
+    isolate_samples = data.get("isolate_samples", True)
+    return ExperimentConfig(name, pipeline_type, settings, datasets, isolate_samples)

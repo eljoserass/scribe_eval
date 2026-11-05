@@ -119,11 +119,13 @@ class RunPaths:
         return self.root / "results.json"
 
     def next_telemetry(self) -> Path:
-        """Pick a new folder, so a resumed run never overwrites earlier telemetry."""
+        """Create a new folder, so nothing overwrites earlier telemetry."""
         execution = 1
         while (self.telemetry / f"execution-{execution}").exists():
             execution += 1
-        return self.telemetry / f"execution-{execution}"
+        directory = self.telemetry / f"execution-{execution}"
+        directory.mkdir(parents=True)
+        return directory
 
     @property
     def telemetry(self) -> Path:
@@ -166,6 +168,7 @@ def prediction_row(prediction: Prediction) -> dict:
         "artifacts": sorted(prediction.artifacts),
         "telemetry": prediction.telemetry.to_dict(),
         "run_directory": prediction.run_directory,
+        "telemetry_directory": prediction.telemetry_directory,
     }
 
 
@@ -186,6 +189,7 @@ def load_prediction(root: Path, row: dict) -> Prediction:
         artifacts=artifacts,
         telemetry=SampleTelemetry.from_dict(row["telemetry"]),
         run_directory=row["run_directory"],
+        telemetry_directory=row["telemetry_directory"],
     )
 
 
