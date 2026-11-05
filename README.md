@@ -1,78 +1,75 @@
-# scribe eval
+# scribe_eval
 
-un evaluation harness para escribas digitales medicos.
+An evaluation harness for clinical scribes. It runs a
+[Scribnic](../scribnic) workflow over datasets, scores what comes out, and keeps
+every run resumable.
 
-éstos dispositivos uselen encenderse durante la consulta para producir una nota médica.
+A digital scribe listens to a consultation and drafts a note, usually SOAP, that a
+clinician checks and files. It looks like a meeting summarizer, with three
+differences:
 
-las notas medicas por lo general siguen el formato SOAP(Subjective, Objective, Assesment, Plan), producidas principalmente con información disponible en la conversación.
+- **Privacy.** Conversations and records are sensitive, and each hospital has its
+  own rules. Running locally matters.
+- **Errors cost more.** Saying a patient has a symptom, or doesn't, is not a typo.
+- **Integration.** A block of text is not enough; it has to fit existing hospital
+  systems.
 
-el dispositivo escucha a la conversación entre el paciente y el personal médico y produce una nota que el medico verifica e introduce al sistema de salud.
+## What gets evaluated
 
-su funcionamiento en principio es bastante similar a los generadores de resúmenes de reuniones, diferenciandose principalmente:
-- la privacidad de datos es crurcial, el sistema estará en contanto posiblemente con historiales médicos, y con conversaciones privadas del paciente. cada hospital tiene su política de datos respectiva. local es bastante importante.
-- errores de transcripción pueden tener repercuciones graves. apesar de que esto cuenta como soporte documental, el impacto en que alguien diga que tiene o NO tiene un sintoma es mas importante que los errores que podria tener un resumidor de notas general.
-- la integracion es importante, se tiene que integrar con infraestructura acutal de IT y EHS, con dejar el texto del resultado en un bloque de texto no basta.
+| Stage | Question |
+| --- | --- |
+| Audio capture | What audio can it process, and what breaks it? |
+| Transcription | Audio to text. |
+| Diarization | Who said what, and whether it helps: bad diarization may be worse than none. |
+| Note | Does it use only what was said, and add nothing? With or without a reference note. |
+| Resources | Time, memory, tokens. |
 
-overall, las cosas que tenemos que evaluar para garantizar su funcionamiento seguro son
-- captura de audio: que pueda procesar el audio en un principio y que tipo de audio no puede procesar
-- transcripcion: pasar de audio a texto
-- diarizacion: saber quien dijo que o cuando. tambien evaluar el efecto realmente de la diarizacion que no necesariamente puede ser beneficioso, o incluso una diarizacion mala quizas es mas perjudicial que transcripcion sin diarizacion.
-- nota: se puede evaluar sin nota de referencia, teniendo en cuenta si usa solo informacion presente en la transcripcion, que no agregue cosas que no deberían. tambien se puede usar nota de referencia.
+Pipelines differ. Some go straight from audio to note, so only those two artifacts
+can be evaluated; others expose every step. Metrics declare what they need, and the
+harness works out what applies.
 
+Clinician workflow and IT integration are out of scope for now.
 
-para probar cada uno de los bordes de funcionalidad del dispositivo en conjunto hay que verificar cada parte, cada una tiene diferentes datasets, con diferentes metricas y tipos de perturbacion (eg, cambiar un pedazo en el audio o agregar ruido, vs cambiar el orden de los speakers para ver como afecta la nota) 
+## Usage
 
-hay datasets que son especificos para cada parte, algunos que funcionan para varias partes de la pipeline, algunos medicos, algunos en otros idiomas.
+Needs [uv](https://docs.astral.sh/uv/) and a Scribnic checkout next to this
+repository.
 
-tambien para evaluar la pipeline hay que tomar en cuenta uso de recursos, eg token usados, tiempo que tarda, ram, operaciones, etc. basicamente guardar y tomar en cuenta con una metrica los datos de telemetry que reporte el escriba.
+```bash
+uv sync
+uv run scribe-eval prepare smoke
+uv run scribe-eval run experiments/smoke.toml
 
-cosas de integracion y operacionales de como funciona para medico ya son aparte. se podria considerar quizas una feature para obtener los datos y ejecutar el analisis
+uv run scribe-eval prepare primock57 --limit 3
+uv run scribe-eval run experiments/primock57_sample.toml
+```
 
-at minimum necesita una categorizar los steps de la pipeline que son posible evaluar. 
+Each run lands in `runs/`. To continue or rescore one:
 
-maybe se podria considerar artefactos y metricas evaluables. por ejemplo una nota es un artefacto, por ahora la forma basica es texto, y otra forma trivial de evaluarlo seria por ejemplo rouge, aunque rouge luego especifica que necesita un artefacto de referencia para comparar. 
+```bash
+uv run scribe-eval resume runs/<run>
+uv run scribe-eval resume runs/<run> --retry-errors
+uv run scribe-eval score runs/<run>
+```
 
-las notas pueden tener muchas metricas asi, y que las metricas tengan sus requirements, por ejemplo otro puede ser que información excluida/añadida. puede pedir una transcripcion y computar alguna evaluacion de que por ejemplo se menciona paracetamol en la transcripcion y la menciona en el texto, luego lo contrario, incluye paracetamol pero no se menciona nunca. aqui quizas haya que tener en cuenta metodos de extraccion de entidades. 
+`experiments/primock57_full.toml` runs all 57 consultations. That is hours on CPU,
+so it is meant for a server: prepare the data there, or copy `data/` and set
+`SCRIBE_EVAL_DATA`.
 
-luego ver como combate sobre perturbations podria ser, a la hora de generar la nota, evaluas la nota limpia, luego evaluas cuando perturbas la transcripcion y ves la diferencia.
+## Docs
 
-se definiria basicamente artefactos como
-audio
-transcripcion
-diarizacion
-transcripcion diarizada
-nota
+- [Architecture](docs/architecture.md)
+- [Datasets](docs/datasets.md)
+- [Metrics](docs/metrics.md)
 
+## References
 
-puede haber pipelines que vayan directamente de audio a nota por lo que solo se pueda evaluar audio y nota
-
-otros tendran todas las partes, y definen que inputs requieren.
-
-muchas de estas metricas seran estandars
-
-es mas que el harness sea el glue entre, data, metricas, y pipelines
-
-por ahora esta opinionated de que funcione con la arquitectura de scribnic que es el que vamos a evaluar principalmente.
-
-algunas referencias 
-
-
-https://huggingface.co/collections/sarahgebauer/ambient-scribe-evaluation-datasets
-
-https://aclanthology.org/2025.naacl-long.426.pdf
-
-https://arxiv.org/html/2508.01401v2
-
-https://arxiv.org/html/2408.14568v1
-
-GOOD RESOURCE ON SOAP https://www.ncbi.nlm.nih.gov/books/NBK482263/
-
-https://www.nature.com/articles/s41746-025-01622-1
-
-https://github.com/AutoEvaluation/ADS_evaluation
-
-https://github.com/AutoEvaluation/EvalLLM4Health
-
-
-
- 
+- [Ambient scribe evaluation datasets](https://huggingface.co/collections/sarahgebauer/ambient-scribe-evaluation-datasets)
+- [Afrispeech-Dialog, NAACL 2025](https://aclanthology.org/2025.naacl-long.426.pdf)
+- [MedSynth](https://arxiv.org/html/2508.01401v2)
+- [Improving clinical note generation (CliniKnote)](https://arxiv.org/html/2408.14568v1)
+- [SOAP notes, StatPearls](https://www.ncbi.nlm.nih.gov/books/NBK482263/)
+- [An evaluation framework for ambient digital scribing tools](https://www.nature.com/articles/s41746-025-01622-1)
+- [ADS_evaluation](https://github.com/AutoEvaluation/ADS_evaluation)
+- [EvalLLM4Health](https://github.com/AutoEvaluation/EvalLLM4Health)
+- [AU-Harness](https://github.com/ServiceNow/AU-Harness)
