@@ -1,0 +1,11 @@
+# A few consultations, sized for a laptop.
+name = "primock57-sample"
+workflow = "../workflows/whisper_small_bonsai_en.toml"
+
+[[datasets]]
+name = "primock57"
+split = "all"
+input = "audio"
+limit = 3
+seed = 42
+metrics = ["transcription", "note_format", "note_reference", "resources"]

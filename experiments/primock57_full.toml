@@ -1,0 +1,9 @@
+# All consultations. Expect hours on CPU; meant for a server.
+name = "primock57-full"
+workflow = "../workflows/whisper_small_bonsai_en.toml"
+
+[[datasets]]
+name = "primock57"
+split = "all"
+input = "audio"
+metrics = ["transcription", "note_format", "note_reference", "resources"]
