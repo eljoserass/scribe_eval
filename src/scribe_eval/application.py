@@ -166,15 +166,12 @@ def _write_status(
     )
 
 
-def _score_and_report(
-    paths: RunPaths, plans: tuple[DatasetPlan, ...], pipeline: Pipeline
-) -> dict[str, object]:
-    """Score saved predictions, then write the results and the report."""
+def _score(paths: RunPaths, plans: tuple[DatasetPlan, ...]) -> dict[str, object]:
+    """Score saved predictions and write the results."""
     for plan in plans:
         score_dataset(paths, plan)
     results = aggregate_run(paths, plans)
     write_json(paths.results, results)
-    write_report(paths, plans, results, pipeline)
     return results
 
 
@@ -205,8 +202,11 @@ def _execute(
             retry_errors=retry_errors,
             on_prediction=track,
         )
+        _write_status(paths, plans, "scoring")
+        results = _score(paths, plans)
         _write_status(paths, plans, "completed")
-        return _score_and_report(paths, plans, pipeline)
+        write_report(paths, plans, results, pipeline)
+        return results
     except KeyboardInterrupt:
         _write_status(paths, plans, "interrupted")
         raise
@@ -350,4 +350,7 @@ def score_run(
 ) -> dict[str, object]:
     """Recompute scores, results, and the report, without running the pipeline."""
     paths, plans, pipeline = _load_run(run_directory, data_directory, pipeline, judge)
-    return _score_and_report(paths, plans, pipeline)
+    results = _score(paths, plans)
+    _write_status(paths, plans, "completed")
+    write_report(paths, plans, results, pipeline)
+    return results

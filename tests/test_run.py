@@ -145,6 +145,20 @@ class RunTests(unittest.TestCase):
         self.assertEqual(pipeline.runs, 0)
         self.assertEqual(results["datasets"]["tiny"]["metrics"]["wer"]["n"], 3)
 
+    def test_a_run_is_only_completed_after_scoring(self):
+        states = []
+
+        class Failing(FakePipeline):
+            """Record the status when scoring asks for a timeline."""
+
+            def timeline(_, directories, telemetry):
+                """Read the status as the report is written."""
+                states.append(self.json("status.json")["state"])
+                return super().timeline(directories, telemetry)
+
+        self.run_it(Failing())
+        self.assertEqual(set(states), {"completed"})
+
     def test_invalid_experiment_writes_nothing(self):
         text = EXPERIMENT.replace('input = "audio"', 'input = "note"')
         self.experiment.write_text(text, encoding="utf-8")
