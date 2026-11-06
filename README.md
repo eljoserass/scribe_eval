@@ -65,6 +65,7 @@ so it is meant for a server: prepare the data there, or copy `data/` and set
 - [Adding a pipeline](docs/pipelines.md)
 - [Datasets](docs/datasets.md)
 - [Metrics](docs/metrics.md)
+- [Evaluation notes](docs/evaluation_notes.md)
 
 ## References
 

@@ -28,7 +28,8 @@ const number = (value) =>
 
 function metricValue(name, key, value) {
   if (name.includes("rss")) return gb(value);
-  if (name === "wer" || name === "cer" || key === "rate") return (value * 100).toFixed(1) + "%";
+  const rate = ["wer", "cer", "medical_term_wer"].includes(name) || name.endsWith("_rate") || key === "rate";
+  if (rate && !["terms", "facts_per_sample"].includes(key)) return (value * 100).toFixed(1) + "%";
   return number(value);
 }
 

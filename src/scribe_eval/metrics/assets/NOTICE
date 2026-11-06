@@ -1,0 +1,11 @@
+medical_terms_en.txt comes unmodified from MedWER, commit dd03862a4800a798c8da1a649ff24a27f2cfc355:
+https://github.com/Nordis-Tech/medwer
+
+Code: Copyright (c) 2026 NORDIS TECH INC, MIT License.
+
+Drug terms contain information licensed under the Open Government Licence – Canada.
+Sources: Health Canada Drug Product Database; Canadian Clinical Drug Data Set (Canada
+Health Infoway / Health Canada). https://open.canada.ca/en/open-government-licence-canada
+
+Diagnosis, symptom, and mechanism terms: ICD-10-CM (National Center for Health
+Statistics / Centers for Medicare & Medicaid Services). United States public domain.

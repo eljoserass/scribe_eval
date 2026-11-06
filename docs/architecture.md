@@ -201,6 +201,7 @@ src/scribe_eval/
 ├── scoring.py        # second phase
 ├── aggregation.py    # scores → results
 ├── reporting.py      # results → report.html
+├── judge.py          # LLM client with a disk cache
 ├── storage.py        # run layout, JSONL, predictions
 ├── hardware.py       # describes the machine
 ├── application.py    # prepare, run, resume, score
@@ -220,9 +221,12 @@ src/scribe_eval/
 │   └── teme.py       # converter; builds the smoke dataset
 └── metrics/
     ├── transcription.py
+    ├── diarization.py
+    ├── overlap.py    # ROUGE, BLEU, METEOR, Levenshtein
     ├── note_format.py
-    ├── note_reference.py
-    └── resources.py
+    ├── facts.py
+    ├── resources.py
+    └── assets/       # term lists
 ```
 
 ## Planned
@@ -234,8 +238,6 @@ src/scribe_eval/
   add nothing.
 - **Perturbations.** An `Artifact -> Artifact` function with a seed, applied before
   the pipeline. Each creates a `variant` compared against `clean`.
-- **Judges and entity extraction.** Ordinary metrics. Running at scoring time, they
-  don't compete with inference for memory.
 
 `variant` and `repeat` are already in every row, so none of this needs a migration.
 
