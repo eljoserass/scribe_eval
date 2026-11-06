@@ -131,7 +131,7 @@ per-instance state, per-instance stats, and aggregates in separate files.
 runs/20261105-153000-primock57-sample-1a2b3c/
 ├── experiment.toml      # exact copy
 ├── manifest.json        # IDs, versions, hardware, effective pipeline
-├── status.json          # running, completed, interrupted, or failed
+├── status.json          # running, scoring, completed, interrupted, or failed
 ├── startup.jsonl        # model load times
 ├── results.json         # dataset × metric, overall, telemetry summary
 ├── report.html          # self-contained; includes notes, so treat it like the data
