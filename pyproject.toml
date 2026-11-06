@@ -6,21 +6,27 @@ readme = "README.md"
 requires-python = ">=3.12,<3.15"
 dependencies = [
     "jiwer>=4,<5",
+    "nltk>=3.9,<4",
     "num2words>=0.5,<1",
     "numpy>=2,<3",
     "psutil>=7,<8",
+    "rapidfuzz>=3,<4",
     "rich>=15,<16",
+    "rouge-score>=0.1.2,<0.2",
+    "sacrebleu>=2.5,<3",
+    "textstat>=0.7,<1",
     "typer>=0.27,<0.28",
 ]
 
 [project.optional-dependencies]
+diarization = ["pyannote.metrics>=4,<5"]
 scribnic = ["scribnic"]
 
 [project.scripts]
 scribe-eval = "scribe_eval.cli:main"
 
 [dependency-groups]
-dev = ["ruff>=0.14,<1", "scribnic"]
+dev = ["pyannote.metrics>=4,<5", "ruff>=0.14,<1", "scribnic"]
 
 [tool.uv.sources]
 scribnic = { path = "../scribnic", editable = true }

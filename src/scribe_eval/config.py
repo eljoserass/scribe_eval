@@ -5,8 +5,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .artifacts import ArtifactKind, artifact_kind
+from .judge import JudgeConfig
 
-_EXPERIMENT_KEYS = {"name", "pipeline", "datasets", "isolate_samples"}
+_EXPERIMENT_KEYS = {"name", "pipeline", "datasets", "isolate_samples", "judge"}
+_JUDGE_KEYS = {"base_url", "model", "allow_remote", "options"}
 _DATASET_KEYS = {
     "name",
     "split",
@@ -42,6 +44,7 @@ class ExperimentConfig:
     pipeline_settings: dict[str, object]
     datasets: tuple[DatasetEntry, ...]
     isolate_samples: bool = False
+    judge: JudgeConfig | None = None
 
 
 def _check_keys(data: dict, allowed: set[str], label: str) -> None:
@@ -76,6 +79,19 @@ def _dataset_entry(data: dict) -> DatasetEntry:
     )
 
 
+def _judge_config(data: dict | None) -> JudgeConfig | None:
+    """Build the optional `[judge]` table."""
+    if data is None:
+        return None
+    _check_keys(data, _JUDGE_KEYS, "judge")
+    return JudgeConfig(
+        data["base_url"],
+        data["model"],
+        data.get("allow_remote", False),
+        data.get("options", {}),
+    )
+
+
 def load_experiment(path: str | Path) -> ExperimentConfig:
     """Read and check an experiment file.
 
@@ -97,6 +113,7 @@ def load_experiment(path: str | Path) -> ExperimentConfig:
         settings = dict(data["pipeline"])
         pipeline_type = settings.pop("type")
         name = data["name"]
+        judge = _judge_config(data.get("judge"))
     except KeyError as error:
         raise ValueError(f"Missing setting in {path}: {error}") from error
     names = [entry.name for entry in datasets]
@@ -105,4 +122,6 @@ def load_experiment(path: str | Path) -> ExperimentConfig:
     if len(names) != len(set(names)):
         raise ValueError("Each dataset can appear only once in an experiment.")
     isolate_samples = data.get("isolate_samples", False)
-    return ExperimentConfig(name, pipeline_type, settings, datasets, isolate_samples)
+    return ExperimentConfig(
+        name, pipeline_type, settings, datasets, isolate_samples, judge
+    )

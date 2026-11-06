@@ -109,6 +109,11 @@ class RunPaths:
         return self.root / "startup.jsonl"
 
     @property
+    def judge_cache(self) -> Path:
+        """Judge answers, so scoring again costs nothing."""
+        return self.root / "judge_cache.jsonl"
+
+    @property
     def report(self) -> Path:
         """Readable summary of the run."""
         return self.root / "report.html"

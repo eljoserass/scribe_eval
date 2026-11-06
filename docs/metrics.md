@@ -8,9 +8,21 @@ metric or a whole group. Nothing here measures clinical safety yet.
 | Group | Metric | Predicted | Reference | Aggregates |
 | --- | --- | --- | --- | --- |
 | `transcription` | `wer`, `cer` | `transcript` | `transcript` | Global, sample mean |
+| `transcription` | `medical_term_wer` | `transcript` | `transcript` | Global |
+| `transcription` | `transcript_rouge_1`, `transcript_rouge_l` | `transcript` | `transcript` | Mean |
+| `transcription` | `transcript_bleu` | `transcript` | `transcript` | Corpus, mean |
+| `diarization` | `der` | `diarized_transcript` | `diarized_transcript` | Global, by cause |
+| `diarization` | `jer` | `diarized_transcript` | `diarized_transcript` | Mean |
 | `note_format` | `soap_sections` | `note` | — | Rate |
 | `note_format` | `note_words` | `note` | — | Mean, max |
-| `note_reference` | `rouge_l` | `note` | `note` | Mean |
+| `note_format` | `flesch_reading_ease` | `note` | — | Mean |
+| `note_format` | `compression_ratio` | `note` | `transcript` | Global |
+| `note_reference` | `rouge_1`, `rouge_2`, `rouge_l` | `note` | `note` | Mean |
+| `note_reference` | `bleu` | `note` | `note` | Corpus, mean |
+| `note_reference` | `meteor` | `note` | `note` | Mean |
+| `note_reference` | `levenshtein` | `note` | `note` | Mean, per character |
+| `note_facts` | `unsupported_fact_rate` | `note` | `transcript` | Global, sample mean, negations |
+| `note_facts` | `omitted_fact_rate` | `note` | `transcript` | Global, sample mean, negations |
 | `resources` | `elapsed_seconds` | — | — | Mean, p95 |
 | `resources` | `real_time_factor` | — | `audio` | Global |
 | `resources` | `peak_rss_bytes` | — | — | Max |
@@ -20,6 +32,44 @@ metric or a whole group. Nothing here measures clinical safety yet.
 | `resources` | `process_cpu_cores` | — | — | Mean per process |
 | `resources` | `prefill_tokens_per_second`, `generation_tokens_per_second` | — | — | Mean |
 | `resources` | `prompt_tokens`, `completion_tokens` | — | — | Total, mean |
+
+Reproducibility comes first: metrics use the standard library for each measure.
+Every metric fails somewhere, so read several together.
+
+## Coverage of the ADS framework
+
+Wang et al.'s Table 2, the reference for what to measure.
+
+| Aspect | Their metrics | Status |
+| --- | --- | --- |
+| Transcription | WER, ROUGE, BLEU | Done |
+| Diarization | DER, JER | Done, with the `diarization` extra. Not tried on a real run yet |
+| Diarization | Confusion matrix | Pending |
+| Fluency | Perplexity (GPT-2) | Pending: needs a model |
+| Coherence | BERTScore | Pending: needs a model |
+| Clarity | Flesch reading ease | Done |
+| Brevity | Compression ratio | Done. They don't define it; this is note words over conversation words |
+| Structuring | Structural precision/recall | Skipped: neither the paper nor its code defines it. `soap_sections` covers part of it |
+| Relevance, completeness | ROUGE, BLEU, METEOR, BERTScore | Done, except BERTScore |
+| Factuality | LINK, CORRECT | `note_facts` is close, but not their exact metric |
+| Toxicity | toxic-bert | Pending: needs a model |
+| Human, LLM judges, simulations | Scorecards, rubrics, perturbations | Later |
+
+## Reproducing published numbers
+
+Checked against the 285 notes scored in PriMock57's `metric-scores.json`.
+
+| Metric | Identical values | Rank correlation |
+| --- | --- | --- |
+| `levenshtein` | 285 | 1.00 |
+| `bleu` | 285 | 1.00 |
+| `rouge_l` | 128 | 0.99 |
+| `rouge_2` | 167 | 0.99 |
+| `rouge_1` | 81 | 0.99 |
+| `meteor` | 38 | 0.82 |
+
+ROUGE differs slightly in tokenization. METEOR differs more, and its mean is 0.44 against
+their 0.33, so it isn't comparable across implementations.
 
 ## Rules
 
@@ -47,10 +97,39 @@ metric or a whole group. Nothing here measures clinical safety yet.
   earlier ones left, so peaks mix consultation length with order. The report's RAM
   start and end columns show what stayed.
 
+## Medical terms
+
+`medical_term_wer` follows [MedWER](https://github.com/Nordis-Tech/medwer): keep only
+terms from a fixed list, then align. A missed phrase is one error. It uses MedWER's list
+with this project's normalization, so numbers aren't comparable with theirs. English
+only; other languages are skipped. It's precise but misses most serious errors. See
+[evaluation notes](evaluation_notes.md).
+
+## Facts
+
+`note_facts` compares the note with the reference conversation, not with another note.
+
+- `unsupported_fact_rate`: facts in the note that the consultation doesn't support.
+- `omitted_fact_rate`: facts established in the consultation that the note leaves out.
+
+A judge extracts atomic facts and checks each one. `negations` reports the same rate
+among negated facts. Unlike `link_score` in ADS_evaluation, omission is measured from the
+consultation's side, so it's real coverage.
+
+The judge is any OpenAI-compatible server, set in `[judge]`. It must be local unless
+`allow_remote = true`, since prompts contain clinical text. Answers are cached in
+`judge_cache.jsonl`, so `scribe-eval score` costs nothing the second time. A bad answer
+fails scoring rather than counting as a verdict; predictions stay safe, and `score`
+continues where it stopped.
+
+```bash
+llama-server -m Qwen3.5-4B-Q8_0.gguf --port 8090 --alias judge -c 16384 --cache-ram 0
+```
+
 ## ROUGE is a diagnostic
 
 On a real Bonsai 4B note, with hand-made mutations, a correct paraphrase scored 0.887
-ROUGE-L. Wrong doses, flipped negations, and wrong severity scored 0.984–0.997. One
+ROUGE-L, with an earlier implementation. Wrong doses, flipped negations, and wrong severity scored 0.984–0.997. One
 case, but enough to never read it as a safety signal.
 
 ## What ADS_evaluation does
@@ -102,13 +181,13 @@ and a table of adversarial tests.
 
 | Kind | Idea | Needs | From |
 | --- | --- | --- | --- |
-| Facts | Precision and coverage of atomic facts | LLM or NLI | ADS_evaluation |
-| Negation | Entities as present, absent, or unknown | Entity extractor | CliniKnote |
+| Negation | Lost negations in transcripts, such as a dropped "No." | Rules or a judge | [WER is Unaware](https://arxiv.org/abs/2511.16544) |
 | Judge | The 13 dimensions, in both modes | Validated local LLM | ADS_evaluation |
 | Critical errors | Critical omissions and false statements | Judge validated on human data | PriMock57 |
 | Medication | Drugs, doses, and coherence, with severity | Rules and a judge | TEME, AAMAS 2026 |
 | Semantic | BERTScore, BLEURT, QuestEval | Extra models, Torch | ADS_evaluation, CliniKnote |
-| Diarization | DER, WDER, cpWER, speaker count error | Design pending | [AU-Harness](https://github.com/ServiceNow/AU-Harness) |
+| Diarization | WDER, cpWER, speaker count error | Design pending | [AU-Harness](https://github.com/ServiceNow/AU-Harness) |
+| Timestamps | Segments out of order or past the end of the audio | Predicted segments | Scribnic used to reject these |
 
 The judge's two modes fit `Requires`: one needs a `note` reference, the other a
 `transcript`.

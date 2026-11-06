@@ -12,6 +12,7 @@ from .datasets import CONVERTERS
 from .datasets.prepared import PreparedDataset
 from .hardware import describe_hardware
 from .inference import ProgressCallback, run_inference
+from .judge import Asker, Judge
 from .pipelines import Pipeline, create_pipeline
 from .reporting import write_report
 from .scoring import score_dataset
@@ -62,10 +63,20 @@ def _pipeline_hash(pipeline: Pipeline) -> str:
     return sha256_text(repr(sorted(pipeline.describe().items())))
 
 
+def _judge(
+    experiment: ExperimentConfig, paths: RunPaths, judge: Asker | None
+) -> Asker | None:
+    """Use a given judge, or build the configured one with the run's cache."""
+    if judge is not None or experiment.judge is None:
+        return judge
+    return Judge(experiment.judge, paths.judge_cache)
+
+
 def _plans(
     experiment: ExperimentConfig,
     pipeline: Pipeline,
     data_directory: Path,
+    judge: Asker | None,
     frozen: dict[str, list[str]] | None = None,
 ) -> tuple[DatasetPlan, ...]:
     """Validate every dataset, reusing frozen sample IDs when given."""
@@ -73,7 +84,9 @@ def _plans(
     for entry in experiment.datasets:
         dataset = PreparedDataset(data_directory / entry.name)
         ids = frozen[entry.name] if frozen else None
-        plans.append(plan_dataset(entry, dataset, pipeline, sample_ids=ids))
+        plans.append(
+            plan_dataset(entry, dataset, pipeline, sample_ids=ids, judge=judge)
+        )
     return tuple(plans)
 
 
@@ -103,6 +116,7 @@ def _manifest(
         "isolate_samples": experiment.isolate_samples,
         "pipeline_sha256": _pipeline_hash(pipeline),
         "pipeline": pipeline.describe(),
+        "judge": experiment.judge.model if experiment.judge else None,
         "hardware": describe_hardware(),
         "versions": {
             "python": platform.python_version(),
@@ -208,6 +222,7 @@ def run_experiment(
     runs_directory: Path = Path("runs"),
     run_directory: Path | None = None,
     pipeline: Pipeline | None = None,
+    judge: Asker | None = None,
     on_prediction: ProgressCallback | None = None,
 ) -> tuple[Path, dict[str, object]]:
     """Validate an experiment, then run and score it.
@@ -218,6 +233,7 @@ def run_experiment(
         runs_directory: Where a new run directory is created.
         run_directory: Exact directory for this run, which must not exist.
         pipeline: Replaces the configured pipeline, for tests.
+        judge: Replaces the configured judge, for tests.
         on_prediction: Called after each sample.
 
     Returns:
@@ -234,14 +250,15 @@ def run_experiment(
         experiment.pipeline_settings,
         base_directory=base_directory,
     )
-    plans = _plans(experiment, pipeline, data_directory)
-
     root = run_directory or new_run_directory(runs_directory, experiment.name)
     root = root.expanduser().resolve()
     if root.exists():
         raise ValueError(f"Run directory already exists: {root}")
-    root.mkdir(parents=True)
     paths = RunPaths(root)
+    plans = _plans(
+        experiment, pipeline, data_directory, _judge(experiment, paths, judge)
+    )
+    root.mkdir(parents=True)
     shutil.copyfile(experiment_path, paths.experiment)
     text = experiment_path.read_text(encoding="utf-8")
     manifest = _manifest(
@@ -261,7 +278,10 @@ def run_experiment(
 
 
 def _load_run(
-    run_directory: Path, data_directory: Path, pipeline: Pipeline | None
+    run_directory: Path,
+    data_directory: Path,
+    pipeline: Pipeline | None,
+    judge: Asker | None,
 ) -> tuple[RunPaths, tuple[DatasetPlan, ...], Pipeline]:
     """Rebuild a run's plans, refusing data or configuration that changed."""
     paths = RunPaths(Path(run_directory).expanduser().resolve(strict=True))
@@ -277,7 +297,8 @@ def _load_run(
 
     recorded = manifest["datasets"]
     frozen = {name: data["sample_ids"] for name, data in recorded.items()}
-    plans = _plans(experiment, pipeline, data_directory, frozen)
+    judge = _judge(experiment, paths, judge)
+    plans = _plans(experiment, pipeline, data_directory, judge, frozen)
     for plan in plans:
         if plan.dataset.version != recorded[plan.entry.name]["version"]:
             raise ValueError(f"Dataset {plan.entry.name!r} changed version.")
@@ -290,6 +311,7 @@ def resume_run(
     data_directory: Path = Path("data"),
     retry_errors: bool = False,
     pipeline: Pipeline | None = None,
+    judge: Asker | None = None,
     on_prediction: ProgressCallback | None = None,
 ) -> dict[str, object]:
     """Finish a run with the same samples and configuration.
@@ -299,6 +321,7 @@ def resume_run(
         data_directory: Root of prepared datasets.
         retry_errors: Run failed samples again.
         pipeline: Replaces the configured pipeline, for tests.
+        judge: Replaces the configured judge, for tests.
         on_prediction: Called after each sample.
 
     Returns:
@@ -307,7 +330,7 @@ def resume_run(
     Raises:
         ValueError: If the pipeline or a dataset changed.
     """
-    paths, plans, pipeline = _load_run(run_directory, data_directory, pipeline)
+    paths, plans, pipeline = _load_run(run_directory, data_directory, pipeline, judge)
     return _execute(
         paths,
         plans,
@@ -323,7 +346,8 @@ def score_run(
     *,
     data_directory: Path = Path("data"),
     pipeline: Pipeline | None = None,
+    judge: Asker | None = None,
 ) -> dict[str, object]:
-    """Recompute scores, results, and the report, without running any model."""
-    paths, plans, pipeline = _load_run(run_directory, data_directory, pipeline)
+    """Recompute scores, results, and the report, without running the pipeline."""
+    paths, plans, pipeline = _load_run(run_directory, data_directory, pipeline, judge)
     return _score_and_report(paths, plans, pipeline)

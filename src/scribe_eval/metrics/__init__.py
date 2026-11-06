@@ -3,8 +3,10 @@
 from collections.abc import Iterable
 
 from ..types import Metric
-from .note_format import NoteWords, SoapSections
-from .note_reference import RougeL
+from .diarization import DiarizationErrorRate, JaccardErrorRate
+from .facts import FactRate
+from .note_format import CompressionRatio, FleschReadingEase, NoteWords, SoapSections
+from .overlap import Bleu, Levenshtein, Meteor, Rouge
 from .resources import (
     ElapsedSeconds,
     PeakMemory,
@@ -16,14 +18,33 @@ from .resources import (
     Throughput,
     Tokens,
 )
-from .transcription import CHARACTER_ERROR_RATE, WORD_ERROR_RATE
+from .transcription import (
+    CHARACTER_ERROR_RATE,
+    WORD_ERROR_RATE,
+    MedicalTermErrorRate,
+)
 
 _ALL: tuple[Metric, ...] = (
     WORD_ERROR_RATE,
     CHARACTER_ERROR_RATE,
+    MedicalTermErrorRate(),
+    Rouge("transcript_rouge_1", "rouge1", "transcript", "transcription"),
+    Rouge("transcript_rouge_l", "rougeL", "transcript", "transcription"),
+    Bleu("transcript_bleu", "transcript", "transcription"),
+    DiarizationErrorRate(),
+    JaccardErrorRate(),
     SoapSections(),
     NoteWords(),
-    RougeL(),
+    FleschReadingEase(),
+    CompressionRatio(),
+    Rouge("rouge_1", "rouge1", "note", "note_reference"),
+    Rouge("rouge_2", "rouge2", "note", "note_reference"),
+    Rouge("rouge_l", "rougeL", "note", "note_reference"),
+    Bleu("bleu", "note", "note_reference"),
+    Meteor(),
+    Levenshtein(),
+    FactRate("unsupported_fact_rate", "unsupported"),
+    FactRate("omitted_fact_rate", "omitted"),
     ElapsedSeconds(),
     RealTimeFactor(),
     PeakMemory(),

@@ -5,7 +5,9 @@ from dataclasses import dataclass
 
 from .config import DatasetEntry
 from .datasets.prepared import PreparedDataset
+from .judge import Asker
 from .metrics import resolve_metrics
+from .metrics.facts import FactRate
 from .pipelines import Pipeline
 from .selection import select_ids
 from .types import Metric, satisfies
@@ -28,6 +30,7 @@ def plan_dataset(
     pipeline: Pipeline,
     *,
     sample_ids: Sequence[str] | None = None,
+    judge: Asker | None = None,
 ) -> DatasetPlan:
     """Validate one dataset entry against its data and pipeline.
 
@@ -36,13 +39,14 @@ def plan_dataset(
         dataset: Prepared data on disk.
         pipeline: Pipeline under evaluation.
         sample_ids: Frozen IDs when resuming; selected from `entry` otherwise.
+        judge: Model for metrics that need one.
 
     Returns:
         The plan. A metric the pipeline cannot satisfy is listed as not applicable.
 
     Raises:
         ValueError: If the dataset lacks the input or a reference a metric needs,
-            or the pipeline doesn't accept the input.
+            the pipeline doesn't accept the input, or a metric needs a missing judge.
     """
     if entry.split not in dataset.splits:
         raise ValueError(f"Dataset {dataset.name!r} has no split {entry.split!r}.")
@@ -53,6 +57,10 @@ def plan_dataset(
     metrics = []
     not_applicable = {}
     for metric in resolve_metrics(entry.metrics):
+        if isinstance(metric, FactRate):
+            if judge is None:
+                raise ValueError(f"Metric {metric.name!r} needs a [judge] table.")
+            metric = metric.with_judge(judge)
         for kind in metric.requires.reference:
             if not satisfies(dataset.provides, kind):
                 raise ValueError(

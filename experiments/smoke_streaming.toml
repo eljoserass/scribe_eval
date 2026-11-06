@@ -1,5 +1,4 @@
 # The smoke sample through the rolling window, fed as fast as it can process.
-# Fails for now: Scribnic rejects windows whose last segment ends past the window.
 name = "smoke-streaming"
 
 [pipeline]
