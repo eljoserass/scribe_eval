@@ -21,8 +21,7 @@ metric or a whole group. Nothing here measures clinical safety yet.
 | `note_reference` | `bleu` | `note` | `note` | Corpus, mean |
 | `note_reference` | `meteor` | `note` | `note` | Mean |
 | `note_reference` | `levenshtein` | `note` | `note` | Mean, per character |
-| `note_facts` | `unsupported_fact_rate` | `note` | `transcript` | Global, sample mean, negations |
-| `note_facts` | `omitted_fact_rate` | `note` | `transcript` | Global, sample mean, negations |
+| `link_correct` | `link`, `correct` | `note` | `note` | Mean |
 | `resources` | `elapsed_seconds` | — | — | Mean, p95 |
 | `resources` | `real_time_factor` | — | `audio` | Global |
 | `resources` | `peak_rss_bytes` | — | — | Max |
@@ -51,7 +50,7 @@ Wang et al.'s Table 2, the reference for what to measure.
 | Brevity | Compression ratio | Done. They don't define it; this is note words over conversation words |
 | Structuring | Structural precision/recall | Skipped: neither the paper nor its code defines it. `soap_sections` covers part of it |
 | Relevance, completeness | ROUGE, BLEU, METEOR, BERTScore | Done, except BERTScore |
-| Factuality | LINK, CORRECT | `note_facts` is close, but not their exact metric |
+| Factuality | LINK, CORRECT | Done, replicating their code, with a swappable judge |
 | Toxicity | toxic-bert | Pending: needs a model |
 | Human, LLM judges, simulations | Scorecards, rubrics, perturbations | Later |
 
@@ -105,22 +104,27 @@ with this project's normalization, so numbers aren't comparable with theirs. Eng
 only; other languages are skipped. It's precise but misses most serious errors. See
 [evaluation notes](evaluation_notes.md).
 
-## Facts
+## LINK and CORRECT
 
-`note_facts` compares the note with the reference conversation, not with another note.
+`link` and `correct` replicate Wang et al.'s fact metrics, as in
+[ADS_evaluation](https://github.com/AutoEvaluation/ADS_evaluation). A judge extracts facts
+from the generated and reference notes, then checks each generated fact, one call each.
 
-- `unsupported_fact_rate`: facts in the note that the consultation doesn't support.
-- `omitted_fact_rate`: facts established in the consultation that the note leaves out.
+```text
+CORRECT = supported / generated facts
+LINK = min(1, supported / reference facts)
+```
 
-A judge extracts atomic facts and checks each one. `negations` reports the same rate
-among negated facts. Unlike `link_score` in ADS_evaluation, omission is measured from the
-consultation's side, so it's real coverage.
+Their repository has no license, so its prompts aren't copied here. They're fetched
+verbatim from a pinned commit on first use, into `~/.cache/scribe_eval`.
+
+Differences from their setup: the judge model is ours to choose, at temperature 0 instead
+of 0.7. The server enforces the JSON shape, and a bad answer fails scoring instead of
+counting as `NO`. Compare scores only between runs with the same judge.
 
 The judge is any OpenAI-compatible server, set in `[judge]`. It must be local unless
 `allow_remote = true`, since prompts contain clinical text. Answers are cached in
-`judge_cache.jsonl`, so `scribe-eval score` costs nothing the second time. A bad answer
-fails scoring rather than counting as a verdict; predictions stay safe, and `score`
-continues where it stopped.
+`judge_cache.jsonl`, so `scribe-eval score` costs nothing the second time.
 
 ```bash
 llama-server -m Qwen3.5-4B-Q8_0.gguf --port 8090 --alias judge -c 16384 --cache-ram 0
@@ -141,17 +145,8 @@ notebooks, not a harness.
 **Automatic:** ROUGE-1/2/L/Lsum, BLEU, METEOR, BERTScore, GPT-2 perplexity, and a
 toxicity classifier.
 
-**Facts** (the most useful part):
-
-1. An LLM extracts atomic facts from the generated and reference notes: one piece of
-   information each, self-contained, figures and units intact.
-2. Each predicted fact is checked against the reference facts, by an LLM or by NLI
-   (`roberta-large`, entailment above 0.95).
-3. `correct_score` = supported / predicted facts. Roughly precision.
-4. `link_score` = min(1, supported / reference facts). A loose stand-in for recall.
-
-`link_score` isn't real recall: it counts predicted facts, not covered reference
-facts, and several can lean on the same one. Coverage should be computed the other way.
+**Facts.** LINK and CORRECT, replicated here. `link_score` isn't real recall: it counts
+generated facts, not covered reference facts, and several can lean on the same one.
 
 **LLM judge.** Two modes, against the transcript or a reference note. Each dimension
 gets Yes/No, 1–5, and an explanation.
@@ -170,7 +165,6 @@ To adopt any of this:
 - It calls GPT-4 and GPT-4o at temperature 0.7. Clinical data needs a local judge, and
   a small model has to prove it can do the job.
 - Rubrics are in English and need translating and validating for Spanish.
-- A parsing failure counts as `NO`. Here it should be a visible error.
 - Validate judges before trusting them, for instance against PriMock57's human data.
 
 [EvalLLM4Health](https://github.com/AutoEvaluation/EvalLLM4Health) is an earlier repo

@@ -7,7 +7,7 @@ from .config import DatasetEntry
 from .datasets.prepared import PreparedDataset
 from .judge import Asker
 from .metrics import resolve_metrics
-from .metrics.facts import FactRate
+from .metrics.link_correct import LinkCorrect
 from .pipelines import Pipeline
 from .selection import select_ids
 from .types import Metric, satisfies
@@ -57,7 +57,7 @@ def plan_dataset(
     metrics = []
     not_applicable = {}
     for metric in resolve_metrics(entry.metrics):
-        if isinstance(metric, FactRate):
+        if isinstance(metric, LinkCorrect):
             if judge is None:
                 raise ValueError(f"Metric {metric.name!r} needs a [judge] table.")
             metric = metric.with_judge(judge)

@@ -224,7 +224,7 @@ src/scribe_eval/
     ├── diarization.py
     ├── overlap.py    # ROUGE, BLEU, METEOR, Levenshtein
     ├── note_format.py
-    ├── facts.py
+    ├── link_correct.py
     ├── resources.py
     └── assets/       # term lists
 ```

@@ -4,7 +4,7 @@ from collections.abc import Iterable
 
 from ..types import Metric
 from .diarization import DiarizationErrorRate, JaccardErrorRate
-from .facts import FactRate
+from .link_correct import LinkCorrect
 from .note_format import CompressionRatio, FleschReadingEase, NoteWords, SoapSections
 from .overlap import Bleu, Levenshtein, Meteor, Rouge
 from .resources import (
@@ -43,8 +43,8 @@ _ALL: tuple[Metric, ...] = (
     Bleu("bleu", "note", "note_reference"),
     Meteor(),
     Levenshtein(),
-    FactRate("unsupported_fact_rate", "unsupported"),
-    FactRate("omitted_fact_rate", "omitted"),
+    LinkCorrect("link"),
+    LinkCorrect("correct"),
     ElapsedSeconds(),
     RealTimeFactor(),
     PeakMemory(),
