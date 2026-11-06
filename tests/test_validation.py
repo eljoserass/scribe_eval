@@ -60,9 +60,9 @@ class ValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "no 'audio' input"):
             plan_dataset(entry, PreparedDataset(root), FakePipeline())
 
-    def test_fact_metrics_need_a_judge(self):
+    def test_judged_metrics_need_a_judge(self):
         with self.assertRaisesRegex(ValueError, "judge"):
-            self.plan("audio", ("note_facts",))
+            self.plan("audio", ("link_correct",))
 
     def test_unprepared_dataset_explains_what_to_do(self):
         with self.assertRaisesRegex(ValueError, "scribe-eval prepare"):

@@ -1,5 +1,5 @@
-# Fact checks need a local OpenAI-compatible server. See docs/metrics.md.
-name = "primock57-facts"
+# LINK and CORRECT need a judge: any OpenAI-compatible server. See docs/metrics.md.
+name = "primock57-link-correct"
 
 [pipeline]
 type = "scribnic"
@@ -19,4 +19,4 @@ split = "all"
 input = "audio"
 limit = 3
 seed = 42
-metrics = ["transcription", "note_format", "note_reference", "note_facts", "resources"]
+metrics = ["transcription", "note_format", "note_reference", "link_correct", "resources"]
