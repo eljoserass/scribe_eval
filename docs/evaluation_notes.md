@@ -26,6 +26,15 @@ Read in November 2026: mostly results sections and abstracts, not every paper in
 - **Term-restricted WER is deterministic,** with no model at evaluation time. Its fixed
   list covers about 20% of annotated entities. [5]
 - **Judges help but aren't clinicians.** Validate them first. [7]
+- **PriMock57's generated notes came from ASR,** Google Speech-to-text, and clinicians
+  judged them against the audio. Its error labels already mix ASR and note errors. [1]
+- **Most serious errors may start in ASR.** Scoring notes from a perfect transcript and
+  end to end, one preprint traced 87% of serious errors to ASR and 7% to the note step.
+  ACI-BENCH saw little difference on n-gram metrics, which weight all facts equally.
+  Read from abstracts only. [10, 11]
+- **Judges miss omissions.** Eight judge designs scored 0.79–0.94 on added or altered
+  content and 0.50–0.63 on omissions. The same preprint found a material discrepancy
+  with the transcript in all 53 PriMock57 clinician notes it audited. [12]
 
 ## Checks in this project
 
@@ -63,3 +72,7 @@ four without running a scribe.
 7. [When Reasoning Hurts](https://arxiv.org/abs/2605.24902), 2026.
 8. [An Investigation of Evaluation Metrics for Automated Medical Note Generation](https://arxiv.org/abs/2305.17364), 2023.
 9. [Validating Digital Scribes: A Scoping Review](https://doi.org/10.1007/s10916-026-02392-3), Journal of Medical Systems 2026.
+10. [Mind the gap: emergent clinical risk at the interface of two individually safe AI systems](https://www.medrxiv.org/content/10.64898/2026.09.22.26363642v1.full), medRxiv 2026.
+11. Yim et al., [ACI-BENCH](https://arxiv.org/abs/2306.02022), Scientific Data 2023.
+12. [LLM Judges Verify Presence, Not Absence](https://arxiv.org/abs/2608.31016), 2026.
+13. Xie et al., [DocLens](https://arxiv.org/abs/2311.09581), ACL 2024.

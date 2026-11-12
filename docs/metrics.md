@@ -43,15 +43,15 @@ Wang et al.'s Table 2, the reference for what to measure.
 | --- | --- | --- |
 | Transcription | WER, ROUGE, BLEU | Done |
 | Diarization | DER, JER | Done, with the `diarization` extra. Not tried on a real run yet |
-| Diarization | Confusion matrix | Pending |
-| Fluency | Perplexity (GPT-2) | Pending: needs a model |
-| Coherence | BERTScore | Pending: needs a model |
+| Diarization | Confusion matrix | Planned |
+| Fluency | Perplexity (GPT-2) | Skipped for now: fluency isn't the risk in a clinical note |
+| Coherence | BERTScore | Next, as an optional extra |
 | Clarity | Flesch reading ease | Done |
 | Brevity | Compression ratio | Done. They don't define it; this is note words over conversation words |
 | Structuring | Structural precision/recall | Skipped: neither the paper nor its code defines it. `soap_sections` covers part of it |
 | Relevance, completeness | ROUGE, BLEU, METEOR, BERTScore | Done, except BERTScore |
 | Factuality | LINK, CORRECT | Done, replicating their code, with a swappable judge |
-| Toxicity | toxic-bert | Pending: needs a model |
+| Toxicity | toxic-bert | Skipped for now: near zero on clinical notes |
 | Human, LLM judges, simulations | Scorecards, rubrics, perturbations | Later |
 
 ## Reproducing published numbers
@@ -173,15 +173,39 @@ and a table of adversarial tests.
 
 ## Planned
 
-| Kind | Idea | Needs | From |
+Published metrics first; anything adapted says so.
+
+| Kind | Metric | Needs | From |
 | --- | --- | --- | --- |
-| Negation | Lost negations in transcripts, such as a dropped "No." | Rules or a judge | [WER is Unaware](https://arxiv.org/abs/2511.16544) |
-| Judge | The 13 dimensions, in both modes | Validated local LLM | ADS_evaluation |
-| Critical errors | Critical omissions and false statements | Judge validated on human data | PriMock57 |
-| Medication | Drugs, doses, and coherence, with severity | Rules and a judge | TEME, AAMAS 2026 |
-| Semantic | BERTScore, BLEURT, QuestEval | Extra models, Torch | ADS_evaluation, CliniKnote |
+| Semantic | BERTScore | Torch and a model, about 1.4 GB in English | [Zhang et al. 2020](https://arxiv.org/abs/1904.09675), ADS_evaluation |
+| Semantic | BLEURT | A fine-tuned checkpoint, about 2 GB | [Sellam et al. 2020](https://arxiv.org/abs/2004.04696), ACI-BENCH |
+| Medical concepts | MEDCON: F1 over UMLS concepts | QuickUMLS and a UMLS licence | [ACI-BENCH](https://arxiv.org/abs/2306.02022) |
+| Transcription | Clinical BERTScore: errors weighted by clinical relevance | A model; its clinician benchmark checks it | [Shor et al. 2023](https://arxiv.org/abs/2303.05737) |
+| Transcription | Substitutions, deletions, insertions | Nothing new | jiwer |
+| Diarization | Confusion matrix | Nothing new | ADS_evaluation |
 | Diarization | WDER, cpWER, speaker count error | Design pending | [AU-Harness](https://github.com/ServiceNow/AU-Harness) |
-| Timestamps | Segments out of order or past the end of the audio | Predicted segments | Scribnic used to reject these |
+| Facts | Claim recall and precision against the reference note | A judge | [DocLens](https://github.com/yiqingxyq/DocLens) |
+| Hallucination | Note facts checked against the reference transcript | A judge | [FActScore](https://arxiv.org/abs/2305.14251), DocLens attribution |
+| Attribution | The same check against the generated transcript: a fact absent from both was invented by the note step; present only in the generated one, it came from ASR | A judge | [Layered evaluation](https://www.medrxiv.org/content/10.64898/2026.09.22.26363642v1.full), preprint |
+| Negation | Assertion status: present, absent, possible | Rules or a model | NegEx, i2b2 2010, CliniKnote labels |
+| Medication | Drugs, doses, and coherence, with severity | Rules and a judge | TEME, AAMAS 2026 |
+| Timestamps | Boundary error against reference times, within a tolerance | Predicted segments | DER collars, forced-alignment work |
+| Judge | The 13 dimensions, in both modes | Validated local LLM | ADS_evaluation |
+
+## Validating judges
+
+A judge is a metric too, and PriMock57 can check it. Five clinicians each post-edited
+the same 285 notes, 4 generated and 1 human per consultation, comparing them with the
+audio. They marked:
+
+- **Incorrect statements:** sentences with at least one factual error against the audio.
+- **Omissions:** medical facts that belonged in the note and are missing.
+- **Critical:** either kind, when it would create medico-legal liability.
+- **Post-editing time.**
+
+A judge's counts and spans can be compared with theirs, against the clinicians' mean,
+since they disagree with each other. Expect judges to miss omissions: a 2026 preprint
+found eight judge designs near chance on them. See [evaluation notes](evaluation_notes.md).
 
 The judge's two modes fit `Requires`: one needs a `note` reference, the other a
 `transcript`.
