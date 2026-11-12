@@ -31,7 +31,13 @@ class ErrorRate:
             return None
         if not hypothesis:
             size = float(self.align(reference, reference).hits)
-            details = {"errors": size, "reference_size": size}
+            details = {
+                "errors": size,
+                "reference_size": size,
+                "substitutions": 0.0,
+                "deletions": size,
+                "insertions": 0.0,
+            }
             return Score(self.name, 1.0, details)
         output = self.align(reference, hypothesis)
         errors = output.substitutions + output.deletions + output.insertions
@@ -46,13 +52,21 @@ class ErrorRate:
         return Score(self.name, errors / size, details)
 
     def aggregate(self, scores: Sequence[Score]) -> dict[str, float]:
-        """Report both views: long consultations weigh more in the global rate."""
+        """Report both views: long consultations weigh more in the global rate.
+
+        The global rate splits into substitutions, deletions, and insertions, when
+        every score has them; scores from older runs may not.
+        """
         errors = sum(score.details["errors"] for score in scores)
         size = sum(score.details["reference_size"] for score in scores)
-        return {
+        result = {
             "global": errors / size,
             "sample_mean": fmean(score.value for score in scores),
         }
+        for kind in ("substitutions", "deletions", "insertions"):
+            if all(kind in score.details for score in scores):
+                result[kind] = sum(score.details[kind] for score in scores) / size
+        return result
 
 
 @lru_cache(maxsize=4)

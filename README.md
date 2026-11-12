@@ -44,6 +44,10 @@ uv run scribe-eval prepare primock57 --limit 3
 uv run scribe-eval run experiments/primock57_sample.toml
 ```
 
+Heavy metrics are optional extras: `uv sync --extra semantic` for BERTScore, BLEURT,
+and Clinical BERTScore (Torch), `--extra diarization` for DER and JER. See
+[metrics](docs/metrics.md#model-metrics).
+
 The PriMock57 experiments point to a local English Scribnic workflow in `workflows/`.
 Pipeline configuration isn't part of the harness, so that folder isn't versioned.
 

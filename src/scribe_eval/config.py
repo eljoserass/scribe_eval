@@ -1,13 +1,20 @@
 """Load experiment definitions from TOML."""
 
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .artifacts import ArtifactKind, artifact_kind
 from .judge import JudgeConfig
 
-_EXPERIMENT_KEYS = {"name", "pipeline", "datasets", "isolate_samples", "judge"}
+_EXPERIMENT_KEYS = {
+    "name",
+    "pipeline",
+    "datasets",
+    "isolate_samples",
+    "judge",
+    "metric_settings",
+}
 _JUDGE_KEYS = {"base_url", "model", "allow_remote", "options"}
 _DATASET_KEYS = {
     "name",
@@ -45,6 +52,7 @@ class ExperimentConfig:
     datasets: tuple[DatasetEntry, ...]
     isolate_samples: bool = False
     judge: JudgeConfig | None = None
+    metric_settings: dict[str, dict[str, object]] = field(default_factory=dict)
 
 
 def _check_keys(data: dict, allowed: set[str], label: str) -> None:
@@ -122,6 +130,10 @@ def load_experiment(path: str | Path) -> ExperimentConfig:
     if len(names) != len(set(names)):
         raise ValueError("Each dataset can appear only once in an experiment.")
     isolate_samples = data.get("isolate_samples", False)
+    metric_settings = {
+        metric: dict(values)
+        for metric, values in data.get("metric_settings", {}).items()
+    }
     return ExperimentConfig(
-        name, pipeline_type, settings, datasets, isolate_samples, judge
+        name, pipeline_type, settings, datasets, isolate_samples, judge, metric_settings
     )

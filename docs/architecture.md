@@ -223,6 +223,9 @@ src/scribe_eval/
     ├── transcription.py
     ├── diarization.py
     ├── overlap.py    # ROUGE, BLEU, METEOR, Levenshtein
+    ├── semantic.py   # BERTScore, BLEURT
+    ├── clinical_bertscore.py
+    ├── models.py     # loading, devices, settings for model metrics
     ├── note_format.py
     ├── link_correct.py
     ├── resources.py

@@ -1,11 +1,10 @@
 """Check that a dataset, a pipeline, and metrics fit before loading any model."""
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from .config import DatasetEntry
 from .datasets.prepared import PreparedDataset
-from .judge import Asker
 from .metrics import resolve_metrics
 from .metrics.link_correct import LinkCorrect
 from .pipelines import Pipeline
@@ -22,6 +21,7 @@ class DatasetPlan:
     sample_ids: tuple[str, ...]
     metrics: tuple[Metric, ...]
     not_applicable: dict[str, str]
+    metric_settings: dict[str, dict[str, object]]
 
 
 def plan_dataset(
@@ -30,7 +30,7 @@ def plan_dataset(
     pipeline: Pipeline,
     *,
     sample_ids: Sequence[str] | None = None,
-    judge: Asker | None = None,
+    metrics: Mapping[str, Metric] | None = None,
 ) -> DatasetPlan:
     """Validate one dataset entry against its data and pipeline.
 
@@ -39,14 +39,15 @@ def plan_dataset(
         dataset: Prepared data on disk.
         pipeline: Pipeline under evaluation.
         sample_ids: Frozen IDs when resuming; selected from `entry` otherwise.
-        judge: Model for metrics that need one.
+        metrics: Metrics configured for the experiment; registry defaults otherwise.
 
     Returns:
         The plan. A metric the pipeline cannot satisfy is listed as not applicable.
 
     Raises:
         ValueError: If the dataset lacks the input or a reference a metric needs,
-            the pipeline doesn't accept the input, or a metric needs a missing judge.
+            the pipeline doesn't accept the input, a metric needs a missing judge,
+            or a model metric's extra isn't installed.
     """
     if entry.split not in dataset.splits:
         raise ValueError(f"Dataset {dataset.name!r} has no split {entry.split!r}.")
@@ -54,13 +55,11 @@ def plan_dataset(
         raise ValueError(f"Dataset {dataset.name!r} has no {entry.input!r} input.")
     produced = pipeline.produces(entry.input)
 
-    metrics = []
+    planned = []
     not_applicable = {}
-    for metric in resolve_metrics(entry.metrics):
-        if isinstance(metric, LinkCorrect):
-            if judge is None:
-                raise ValueError(f"Metric {metric.name!r} needs a [judge] table.")
-            metric = metric.with_judge(judge)
+    for metric in resolve_metrics(entry.metrics, metrics):
+        if isinstance(metric, LinkCorrect) and metric.judge is None:
+            raise ValueError(f"Metric {metric.name!r} needs a [judge] table.")
         for kind in metric.requires.reference:
             if not satisfies(dataset.provides, kind):
                 raise ValueError(
@@ -73,10 +72,21 @@ def plan_dataset(
                 f"the pipeline does not produce {', '.join(missing)} from {entry.input}"
             )
         else:
-            metrics.append(metric)
+            planned.append(metric)
 
     if sample_ids is None:
         sample_ids = select_ids(entry, dataset.splits[entry.split])
+    # Effective model settings, for the manifest; also checks the extra is there.
+    metric_settings = {
+        metric.name: metric.describe(dataset.language)
+        for metric in planned
+        if hasattr(metric, "describe")
+    }
     return DatasetPlan(
-        entry, dataset, tuple(sample_ids), tuple(metrics), not_applicable
+        entry,
+        dataset,
+        tuple(sample_ids),
+        tuple(planned),
+        not_applicable,
+        metric_settings,
     )

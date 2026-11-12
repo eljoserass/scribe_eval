@@ -30,11 +30,14 @@ Read in November 2026: mostly results sections and abstracts, not every paper in
   judged them against the audio. Its error labels already mix ASR and note errors. [1]
 - **Most serious errors may start in ASR.** Scoring notes from a perfect transcript and
   end to end, one preprint traced 87% of serious errors to ASR and 7% to the note step.
-  ACI-BENCH saw little difference on n-gram metrics, which weight all facts equally.
-  Read from abstracts only. [10, 11]
+  Its data is synthetic, TTS in 77 languages; three LLM raters, not clinicians,
+  labelled the errors; its code and data aren't public. ACI-BENCH saw little
+  difference on n-gram metrics, which weight all facts equally. [10, 11]
 - **Judges miss omissions.** Eight judge designs scored 0.79–0.94 on added or altered
-  content and 0.50–0.63 on omissions. The same preprint found a material discrepancy
-  with the transcript in all 53 PriMock57 clinician notes it audited. [12]
+  content and 0.50–0.63 on omissions. Extracting facts from the transcript first, then
+  checking each one, recovered part of it. The same preprint found a material
+  discrepancy with the transcript in all 53 PriMock57 clinician notes it audited,
+  10.7 per note on average. Its benchmark (CC BY 4.0) and harness (MIT) are public. [12]
 
 ## Checks in this project
 

@@ -11,6 +11,7 @@ metric or a whole group. Nothing here measures clinical safety yet.
 | `transcription` | `medical_term_wer` | `transcript` | `transcript` | Global |
 | `transcription` | `transcript_rouge_1`, `transcript_rouge_l` | `transcript` | `transcript` | Mean |
 | `transcription` | `transcript_bleu` | `transcript` | `transcript` | Corpus, mean |
+| `transcription_semantic` | `clinical_bertscore` | `transcript` | `transcript` | Global, sample mean |
 | `diarization` | `der` | `diarized_transcript` | `diarized_transcript` | Global, by cause |
 | `diarization` | `jer` | `diarized_transcript` | `diarized_transcript` | Mean |
 | `note_format` | `soap_sections` | `note` | — | Rate |
@@ -21,6 +22,8 @@ metric or a whole group. Nothing here measures clinical safety yet.
 | `note_reference` | `bleu` | `note` | `note` | Corpus, mean |
 | `note_reference` | `meteor` | `note` | `note` | Mean |
 | `note_reference` | `levenshtein` | `note` | `note` | Mean, per character |
+| `note_semantic` | `bertscore` | `note` | `note` | Mean, with precision and recall |
+| `note_semantic` | `bleurt` | `note` | `note` | Mean |
 | `link_correct` | `link`, `correct` | `note` | `note` | Mean |
 | `resources` | `elapsed_seconds` | — | — | Mean, p95 |
 | `resources` | `real_time_factor` | — | `audio` | Global |
@@ -45,11 +48,11 @@ Wang et al.'s Table 2, the reference for what to measure.
 | Diarization | DER, JER | Done, with the `diarization` extra. Not tried on a real run yet |
 | Diarization | Confusion matrix | Planned |
 | Fluency | Perplexity (GPT-2) | Skipped for now: fluency isn't the risk in a clinical note |
-| Coherence | BERTScore | Next, as an optional extra |
+| Coherence | BERTScore | Done, with the `semantic` extra |
 | Clarity | Flesch reading ease | Done |
 | Brevity | Compression ratio | Done. They don't define it; this is note words over conversation words |
 | Structuring | Structural precision/recall | Skipped: neither the paper nor its code defines it. `soap_sections` covers part of it |
-| Relevance, completeness | ROUGE, BLEU, METEOR, BERTScore | Done, except BERTScore |
+| Relevance, completeness | ROUGE, BLEU, METEOR, BERTScore | Done |
 | Factuality | LINK, CORRECT | Done, replicating their code, with a swappable judge |
 | Toxicity | toxic-bert | Skipped for now: near zero on clinical notes |
 | Human, LLM judges, simulations | Scorecards, rubrics, perturbations | Later |
@@ -73,7 +76,8 @@ their 0.33, so it isn't comparable across implementations.
 ## Rules
 
 - **Global and sample mean.** Global WER is total errors over total words. The sample
-  mean gives a short consultation the same weight as a long one.
+  mean gives a short consultation the same weight as a long one. Global WER also
+  splits into substitution, deletion, and insertion rates.
 - **Normalization is part of the metric.** Lowercase, spelled-out numbers, no
   punctuation, no hesitations, in the sample's language. Human transcripts keep every
   "um" and ASR drops them, which isn't an error: on two PriMock57 consultations they
@@ -130,6 +134,55 @@ The judge is any OpenAI-compatible server, set in `[judge]`. It must be local un
 llama-server -m Qwen3.5-4B-Q8_0.gguf --port 8090 --alias judge -c 16384 --cache-ram 0
 ```
 
+## Model metrics
+
+`bertscore`, `bleurt`, and `clinical_bertscore` run neural models, so they need the
+`semantic` extra: `uv sync --extra semantic`. Weights download from Hugging Face the
+first time a run scores with them, into its cache. Set `HF_HOME` to move it, for
+instance to shared storage on a cluster, and `HF_HUB_OFFLINE=1` on nodes without
+internet once it's filled. `device = "auto"` picks CUDA, then Apple MPS, then CPU.
+
+Defaults reproduce each paper; `[metric_settings]` changes them per experiment, and
+`manifest.json` records the effective model, layer, and package version.
+
+```toml
+[metric_settings.bertscore]
+model = "microsoft/deberta-xlarge-mnli"  # default: roberta-large in English
+device = "cuda"
+
+[metric_settings.bleurt]
+checkpoint = "lucadiliello/BLEURT-20-D12"  # default: BLEURT-20, about 2 GB
+
+[metric_settings.clinical_bertscore]
+medical_weight = 0.4                       # the paper's tuned k
+terms = "~/terms/medical_terms_es.txt"     # one term per line
+```
+
+| Metric | Default | Notes |
+| --- | --- | --- |
+| `bertscore` | `roberta-large`, layer 17, in English; multilingual BERT otherwise | [Zhang et al. 2020](https://arxiv.org/abs/1904.09675), through their `bert-score` package. F1, no IDF, no rescaling: what ADS_evaluation gets from Hugging Face `evaluate` with `lang="en"` |
+| `bleurt` | BLEURT-20 | [Sellam et al. 2020](https://arxiv.org/abs/2004.04696). Google's code needs TensorFlow, so this uses the `bleurt-pytorch` port and its conversions of the official checkpoints. Not comparable across checkpoints |
+| `clinical_bertscore` | BERTScore's model, k = 0.4, MedWER's term list | [Shor et al. 2023](https://arxiv.org/abs/2303.05737), adapted below |
+
+Inputs past 512 tokens are truncated, and `truncated` counts them. Generated notes
+can reach that; transcripts always would, hence the split below.
+
+**Clinical BERTScore** is `k × BERTScore_medical + (1 − k) × BERTScore_all`, where the
+medical part weighs only tokens of medical terms and numbers. The paper released no
+code, so three things differ:
+
+- Its 20K medical words come from Google's Knowledge Graph and aren't public. MedWER's
+  19K-term list stands in, so English only unless `terms` points to another list.
+- It scored single sentences. Here each reference utterance is paired with the
+  predicted words aligned to it, as for WER, and the sample weighs utterances by
+  reference words.
+- Text is normalized as for WER, so numbers are spelled out.
+
+The paper's clinician preferences (CTP) are public, so the adaptation can be checked
+against its reported agreement. Not done yet.
+
+The `bertscore_global` detail is plain BERTScore over the same utterance pairs.
+
 ## ROUGE is a diagnostic
 
 On a real Bonsai 4B note, with hand-made mutations, a correct paraphrase scored 0.887
@@ -177,11 +230,8 @@ Published metrics first; anything adapted says so.
 
 | Kind | Metric | Needs | From |
 | --- | --- | --- | --- |
-| Semantic | BERTScore | Torch and a model, about 1.4 GB in English | [Zhang et al. 2020](https://arxiv.org/abs/1904.09675), ADS_evaluation |
-| Semantic | BLEURT | A fine-tuned checkpoint, about 2 GB | [Sellam et al. 2020](https://arxiv.org/abs/2004.04696), ACI-BENCH |
 | Medical concepts | MEDCON: F1 over UMLS concepts | QuickUMLS and a UMLS licence | [ACI-BENCH](https://arxiv.org/abs/2306.02022) |
-| Transcription | Clinical BERTScore: errors weighted by clinical relevance | A model; its clinician benchmark checks it | [Shor et al. 2023](https://arxiv.org/abs/2303.05737) |
-| Transcription | Substitutions, deletions, insertions | Nothing new | jiwer |
+| Transcription | Check `clinical_bertscore` against the paper's clinician benchmark, CTP | Its public data | [Shor et al. 2023](https://arxiv.org/abs/2303.05737) |
 | Diarization | Confusion matrix | Nothing new | ADS_evaluation |
 | Diarization | WDER, cpWER, speaker count error | Design pending | [AU-Harness](https://github.com/ServiceNow/AU-Harness) |
 | Facts | Claim recall and precision against the reference note | A judge | [DocLens](https://github.com/yiqingxyq/DocLens) |

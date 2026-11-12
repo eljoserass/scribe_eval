@@ -20,6 +20,7 @@ dependencies = [
 
 [project.optional-dependencies]
 diarization = ["pyannote.metrics>=4,<5"]
+semantic = ["bert-score>=0.3.13", "bleurt-pytorch>=0.0.1", "protobuf>=4", "torch>=2.2", "transformers>=4.40,<5"]
 scribnic = ["scribnic"]
 
 [project.scripts]

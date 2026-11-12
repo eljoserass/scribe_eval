@@ -13,6 +13,7 @@ from .datasets.prepared import PreparedDataset
 from .hardware import describe_hardware
 from .inference import ProgressCallback, run_inference
 from .judge import Asker, Judge
+from .metrics import configure_metrics
 from .pipelines import Pipeline, create_pipeline
 from .reporting import write_report
 from .scoring import score_dataset
@@ -80,12 +81,13 @@ def _plans(
     frozen: dict[str, list[str]] | None = None,
 ) -> tuple[DatasetPlan, ...]:
     """Validate every dataset, reusing frozen sample IDs when given."""
+    metrics = configure_metrics(experiment.metric_settings, judge=judge)
     plans = []
     for entry in experiment.datasets:
         dataset = PreparedDataset(data_directory / entry.name)
         ids = frozen[entry.name] if frozen else None
         plans.append(
-            plan_dataset(entry, dataset, pipeline, sample_ids=ids, judge=judge)
+            plan_dataset(entry, dataset, pipeline, sample_ids=ids, metrics=metrics)
         )
     return tuple(plans)
 
@@ -131,12 +133,28 @@ def _manifest(
                 "split": plan.entry.split,
                 "input": plan.entry.input,
                 "sample_ids": list(plan.sample_ids),
-                "metrics": {metric.name: metric.version for metric in plan.metrics},
-                "not_applicable": plan.not_applicable,
+                **_metric_record(plan),
             }
             for plan in plans
         },
     }
+
+
+def _metric_record(plan: DatasetPlan) -> dict[str, object]:
+    """What a dataset is scored with: versions, model settings, and exclusions."""
+    return {
+        "metrics": {metric.name: metric.version for metric in plan.metrics},
+        "metric_settings": plan.metric_settings,
+        "not_applicable": plan.not_applicable,
+    }
+
+
+def _record_metrics(paths: RunPaths, plans: tuple[DatasetPlan, ...]) -> None:
+    """Update the manifest when re-scoring, since metrics may have changed."""
+    manifest = read_json(paths.manifest)
+    for plan in plans:
+        manifest["datasets"][plan.entry.name].update(_metric_record(plan))
+    write_json(paths.manifest, manifest)
 
 
 def _write_status(
@@ -350,6 +368,7 @@ def score_run(
 ) -> dict[str, object]:
     """Recompute scores, results, and the report, without running the pipeline."""
     paths, plans, pipeline = _load_run(run_directory, data_directory, pipeline, judge)
+    _record_metrics(paths, plans)
     results = _score(paths, plans)
     _write_status(paths, plans, "completed")
     write_report(paths, plans, results, pipeline)
