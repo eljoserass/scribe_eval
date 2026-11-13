@@ -235,6 +235,8 @@ Published metrics first; anything adapted says so.
 | Diarization | Confusion matrix | Nothing new | ADS_evaluation |
 | Diarization | WDER, cpWER, speaker count error | Design pending | [AU-Harness](https://github.com/ServiceNow/AU-Harness) |
 | Facts | Claim recall and precision against the reference note | A judge | [DocLens](https://github.com/yiqingxyq/DocLens) |
+| Facts | Completeness, conciseness, and groundedness: segments judged entailed, partly, or not, against the reference note or the transcript | A judge | [Symphony](https://arxiv.org/abs/2610.08161) |
+| Judge | Pairwise preference between two notes on eight PDSQI-9 dimensions, judged in both orders | A judge | [Symphony](https://arxiv.org/abs/2610.08161) |
 | Hallucination | Note facts checked against the reference transcript | A judge | [FActScore](https://arxiv.org/abs/2305.14251), DocLens attribution |
 | Attribution | The same check against the generated transcript: a fact absent from both was invented by the note step; present only in the generated one, it came from ASR | A judge | [Layered evaluation](https://www.medrxiv.org/content/10.64898/2026.09.22.26363642v1.full), preprint |
 | Negation | Assertion status: present, absent, possible | Rules or a model | NegEx, i2b2 2010, CliniKnote labels |

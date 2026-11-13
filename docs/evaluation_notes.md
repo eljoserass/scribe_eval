@@ -33,6 +33,11 @@ Read in November 2026: mostly results sections and abstracts, not every paper in
   Its data is synthetic, TTS in 77 languages; three LLM raters, not clinicians,
   labelled the errors; its code and data aren't public. ACI-BENCH saw little
   difference on n-gram metrics, which weight all facts equally. [10, 11]
+- **Completeness separates systems most.** Corti's benchmark of three commercial
+  scribes found groundedness at 90–98% for all and completeness at 63–77%. Its judge
+  is GPT-5.4; three in-house clinicians endorsed its verdicts in 86% of 240 checks,
+  ratifying them rather than judging independently. Authored by one of the vendors
+  compared; no code released. [14]
 - **Judges miss omissions.** Eight judge designs scored 0.79–0.94 on added or altered
   content and 0.50–0.63 on omissions. Extracting facts from the transcript first, then
   checking each one, recovered part of it. The same preprint found a material
@@ -79,3 +84,4 @@ four without running a scribe.
 11. Yim et al., [ACI-BENCH](https://arxiv.org/abs/2306.02022), Scientific Data 2023.
 12. [LLM Judges Verify Presence, Not Absence](https://arxiv.org/abs/2608.31016), 2026.
 13. Xie et al., [DocLens](https://arxiv.org/abs/2311.09581), ACL 2024.
+14. Varab et al., [Symphony for Text Generation: Benchmarking Clinical Note Generation](https://arxiv.org/abs/2610.08161), arXiv 2026.

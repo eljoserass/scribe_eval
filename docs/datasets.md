@@ -33,6 +33,7 @@ Only Smoke and PriMock57 are integrated.
 | [CliniKnote](https://arxiv.org/html/2408.14568v2) | Long notes, negation | Transcript, note, entities | 1,200; 20 public | en | Unconfirmed |
 | [Afrispeech-Dialog](https://huggingface.co/datasets/intronhealth/afrispeech-dialog) | ASR with accents | Audio, transcript | 49 per its table; 20 medical | en | CC BY-NC-SA 4.0 |
 | [MedSynth](https://huggingface.co/datasets/Ahmad0067/MedSynth) | Text at volume | Dialogue, SOAP note | 10,035 | en | Unconfirmed |
+| [MedConv](https://huggingface.co/datasets/corti/med-conv) | Transcript to note, several languages | Transcript, note | 300 | en, da, de | Unreleased |
 
 **The main gap:** nothing here combines Spanish, real speech, and clinical notes.
 TEME-v1 is synthetic and has no notes. Note quality in the intended clinical setting
@@ -131,6 +132,14 @@ table adds up to 49. Non-commercial license.
 
 [arXiv 2508.01401](https://arxiv.org/html/2508.01401v2). Dialogues and SOAP notes
 generated with GPT-4o. Useful for load and volume, not as clinical evidence.
+
+## MedConv
+
+From Corti's [Symphony benchmark](https://arxiv.org/abs/2610.08161), October 2026.
+100 encounters each in English, Danish, and German, over 15+ specialties. Synthetic:
+notes are generated from clinician-written cases and corrected by clinicians, then
+turned into noisy multi-speaker transcripts. No audio. Announced for release with a
+later paper; the link doesn't work yet and the license isn't stated.
 
 ## Not usable
 
