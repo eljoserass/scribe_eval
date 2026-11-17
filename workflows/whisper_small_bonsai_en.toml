@@ -1,6 +1,6 @@
 # English variant of Scribnic's whisper_bonsai preset, for English datasets.
 name = "whisper_small_bonsai_en"
-inputs = ["audio", "transcript", "diarized_transcript"]
+inputs = ["audio", "transcript"]
 default_output = "note"
 download_missing = true
 
