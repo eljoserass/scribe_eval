@@ -57,8 +57,9 @@ Heavy metrics are optional extras: `uv sync --extra semantic` for BERTScore, BLE
 and Clinical BERTScore (Torch), `--extra diarization` for DER and JER. See
 [metrics](docs/metrics.md#model-metrics).
 
-The PriMock57 experiments use the English Scribnic workflow in `workflows/`: Whisper
-small with `language = "en"`, and an English SOAP prompt.
+The PriMock57 experiments use an English Scribnic workflow in `workflows/`: Whisper
+small with `language = "en"`, and an English SOAP prompt. Pipeline configuration isn't
+part of the harness, so it lives on the `scribnic-workflows` branch, not on main.
 
 Each run lands in `runs/`, with a `report.html`. `--no-score` runs only the pipeline
 and saves its predictions, so a long run needs no judge or metric models; `score`
