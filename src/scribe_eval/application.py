@@ -203,8 +203,13 @@ def _execute(
     isolate_samples: bool,
     retry_errors: bool,
     on_prediction: ProgressCallback | None,
-) -> dict[str, object]:
-    """Run inference and scoring, keeping status truthful on every exit path."""
+    score: bool = True,
+) -> dict[str, object] | None:
+    """Run inference, then scoring unless told not to, keeping status truthful.
+
+    Without scoring, the run ends as `predicted`, with no results or report, and
+    `score_run` finishes it later.
+    """
 
     def track(prediction, position, total) -> None:
         """Refresh the status, then report to the caller."""
@@ -222,6 +227,9 @@ def _execute(
             retry_errors=retry_errors,
             on_prediction=track,
         )
+        if not score:
+            _write_status(paths, plans, "predicted")
+            return None
         _write_status(paths, plans, "scoring")
         results = _score(paths, plans)
         _write_status(paths, plans, "completed")
@@ -244,7 +252,8 @@ def run_experiment(
     pipeline: Pipeline | None = None,
     judge: Asker | None = None,
     on_prediction: ProgressCallback | None = None,
-) -> tuple[Path, dict[str, object]]:
+    score: bool = True,
+) -> tuple[Path, dict[str, object] | None]:
     """Validate an experiment, then run and score it.
 
     Args:
@@ -255,9 +264,11 @@ def run_experiment(
         pipeline: Replaces the configured pipeline, for tests.
         judge: Replaces the configured judge, for tests.
         on_prediction: Called after each sample.
+        score: False saves predictions only, to score later with `score_run`.
+            Metrics are still validated first.
 
     Returns:
-        The run directory and its results.
+        The run directory, and its results, or None when not scored.
 
     Raises:
         ValueError: If the experiment is invalid. Nothing is written in that case.
@@ -293,6 +304,7 @@ def run_experiment(
         isolate_samples=experiment.isolate_samples,
         retry_errors=False,
         on_prediction=on_prediction,
+        score=score,
     )
     return root, results
 
@@ -333,7 +345,8 @@ def resume_run(
     pipeline: Pipeline | None = None,
     judge: Asker | None = None,
     on_prediction: ProgressCallback | None = None,
-) -> dict[str, object]:
+    score: bool = True,
+) -> dict[str, object] | None:
     """Finish a run with the same samples and configuration.
 
     Args:
@@ -343,9 +356,10 @@ def resume_run(
         pipeline: Replaces the configured pipeline, for tests.
         judge: Replaces the configured judge, for tests.
         on_prediction: Called after each sample.
+        score: False saves predictions only, to score later with `score_run`.
 
     Returns:
-        The run's results.
+        The run's results, or None when not scored.
 
     Raises:
         ValueError: If the pipeline or a dataset changed.
@@ -358,6 +372,7 @@ def resume_run(
         isolate_samples=load_experiment(paths.experiment).isolate_samples,
         retry_errors=retry_errors,
         on_prediction=on_prediction,
+        score=score,
     )
 
 

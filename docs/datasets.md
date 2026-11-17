@@ -202,6 +202,18 @@ and metrics apply. Then name the dataset in an experiment, like any other.
 Wang et al. use 40 real consultations that aren't public. Their repositories offer
 code and metrics, not data.
 
+ACI-BENCH's Table 1 lists the private corpora behind published scribe results. None
+can be downloaded; their papers describe what real data looks like at scale. Unread
+beyond that table.
+
+| Corpus | Paper | What it holds | Pairs |
+| --- | --- | --- | ---: |
+| 3M Health | Zhang et al., Findings of EMNLP 2021 | Conversations, with history of present illness written from them | 1,342 |
+| Abridge | Krishna et al., ACL 2021 | Conversations, with SOAP notes written from them | 6,862 |
+| Augmedix | Yim and Yetisgen, NLPMC 2021 | Real visits and notes, note sentences aligned to the dialogue | 500 |
+| emr.ai | Finley et al., NAACL 2018 | Dictations, not dialogues, with reports | 9,875 |
+| Nuance | Enarvi et al., NLPMC 2020 | Real conversations and reports | 802,000 |
+
 ## Unread
 
 The [StatPearls SOAP guide](https://www.ncbi.nlm.nih.gov/books/NBK482263/) blocked

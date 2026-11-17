@@ -14,7 +14,6 @@ metric or a whole group. Nothing here measures clinical safety yet.
 | `transcription_semantic` | `clinical_bertscore` | `transcript` | `transcript` | Global, sample mean |
 | `diarization` | `der` | `diarized_transcript` | `diarized_transcript` | Global, by cause |
 | `diarization` | `jer` | `diarized_transcript` | `diarized_transcript` | Mean |
-| `note_format` | `note_sections` | `note` | — | Rate, coverage |
 | `note_format` | `note_words` | `note` | — | Mean, max |
 | `note_format` | `flesch_reading_ease` | `note` | — | Mean |
 | `note_format` | `compression_ratio` | `note` | `transcript` | Global |
@@ -52,7 +51,7 @@ Wang et al.'s Table 2, the reference for what to measure.
 | Coherence | BERTScore | Done, with the `semantic` extra |
 | Clarity | Flesch reading ease | Done |
 | Brevity | Compression ratio | Done. They don't define it; this is note words over conversation words |
-| Structuring | Structural precision/recall | Skipped: neither the paper nor its code defines it. `note_sections` covers part of it |
+| Structuring | Structural precision/recall | Skipped: neither the paper nor its code defines it. Their judge rates structuring, planned below |
 | Relevance, completeness | ROUGE, BLEU, METEOR, BERTScore | Done |
 | Factuality | LINK, CORRECT | Done, replicating their code, with a swappable judge |
 | Factuality without a reference note | — | `grounding`, this project's prompts. Not validated |
@@ -95,17 +94,6 @@ their 0.33, so it isn't comparable across implementations.
   artifact only count successful runs. `n_failed` always sits next to the numbers.
 - **Same language.** A reference metric means nothing if the note and the reference
   are in different languages.
-- **`note_sections`** checks that the expected sections appear in order with nothing
-  before them, and `coverage` reports the share of sections found. A section counts
-  when one of its headings starts a line, with or without Markdown. The default is
-  SOAP in English, with `S`, `O`, `A`, and `P` also accepted; any other language or
-  template is a setting. It can't see junk
-  after the last section, like the `No consta | ...` line Bonsai 2B sometimes adds.
-
-  ```toml
-  [metric_settings.note_sections]
-  sections = [["Motivo de consulta"], ["Exploración"], ["Juicio clínico"], ["Plan"]]
-  ```
 - **`resources`** read the [telemetry contract](architecture.md#telemetry), so they
   work for any pipeline that fills it in. Only `elapsed_seconds` and `real_time_factor`
   work for every pipeline, because the harness measures them. The rest are `n/a` when
@@ -290,7 +278,7 @@ Published metrics first; anything adapted says so.
 | Judge | The 13 dimensions, in both modes | Validated local LLM | ADS_evaluation |
 | Omissions | Facts the transcript establishes, graded by severity, each checked against the note; flag a note missing a critical one | A judge | [OmissionBench](https://arxiv.org/abs/2608.31016); MED-OMIT |
 | Facts | Coverage, omission, contradiction against the reference note, then unmatched facts checked against the transcript | A judge | [Latif et al. 2026](https://proceedings.mlr.press/v333/latif26a.html) |
-| Sections | Reference-based metrics per section, as ACI-BENCH scores its four divisions | `note_sections` headings | ACI-BENCH, CliniKnote |
+| Sections | Reference-based metrics per section, as ACI-BENCH scores its four divisions | Section detection, as ACI-BENCH does with regular expressions | ACI-BENCH, CliniKnote |
 | ASR severity | Medication, dose, and consistency errors graded none, minor, or major | A judge | TEME, AAMAS 2026 |
 
 ## Validating judges

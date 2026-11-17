@@ -4,7 +4,6 @@ import unittest
 
 from scribe_eval.artifacts import DiarizedTranscript, Note, Segment, Transcript
 from scribe_eval.metrics import METRICS, resolve_metrics
-from scribe_eval.metrics.note_format import section_positions
 from scribe_eval.metrics.text import normalize_text
 from scribe_eval.metrics.transcription import keep_terms
 from scribe_eval.telemetry import ModelUsage, Phase, ProcessUsage, SampleTelemetry
@@ -77,41 +76,6 @@ class TranscriptionTests(unittest.TestCase):
 
 
 class NoteTests(unittest.TestCase):
-    def soap(self, text: str, metric=METRICS["note_sections"]) -> float:
-        """Score a note's sections."""
-        return metric.score(prediction(note=Note(text)), sample()).value
-
-    def test_accepts_plain_and_markdown_labels(self):
-        self.assertEqual(self.soap("S — a\nO — b\nA — c\nP — d"), 1.0)
-        self.assertEqual(
-            self.soap("**S — Subjective:** a\n**O:** b\n**A:** c\nP: d"), 1.0
-        )
-
-    def test_rejects_a_missing_section_a_title_and_wrong_order(self):
-        self.assertEqual(self.soap("S — a\nO — b\nP — d"), 0.0)
-        self.assertEqual(self.soap("SOAP note\nS — a\nO — b\nA — c\nP — d"), 0.0)
-        self.assertEqual(self.soap("O — b\nS — a\nA — c\nP — d"), 0.0)
-
-    def test_accepts_headings_on_their_own_line(self):
-        note = "## Subjective\na\n## Objective\nb\n## Assessment\nc\n## Plan\nd"
-        self.assertEqual(self.soap(note), 1.0)
-
-    def test_reports_missing_sections(self):
-        self.assertEqual(section_positions("S: a\nP: d"), [0, None, None, 5])
-
-    def test_sections_are_a_setting(self):
-        metric = METRICS["note_sections"].with_settings(
-            {"sections": [["Motivo de consulta"], ["Plan", "Tratamiento"]]}
-        )
-        self.assertEqual(
-            self.soap("Motivo de consulta: tos\nPlan: reposo", metric), 1.0
-        )
-        self.assertEqual(self.soap("S: a\nO: b\nA: c\nP: d", metric), 0.0)
-
-    def test_malformed_sections_fail(self):
-        with self.assertRaises(ValueError):
-            METRICS["note_sections"].with_settings({"sections": [[]]})
-
     def test_identical_notes_have_full_rouge(self):
         note = Note("no chest pain")
         score = METRICS["rouge_l"].score(prediction(note=note), sample(note=note))

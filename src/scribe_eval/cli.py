@@ -26,6 +26,14 @@ DataOption = Annotated[
     typer.Option(help="Prepared datasets. Defaults to $SCRIBE_EVAL_DATA, then data/"),
 ]
 
+NoScoreOption = Annotated[
+    bool,
+    typer.Option(
+        "--no-score",
+        help="Only run the pipeline; score later with `scribe-eval score`",
+    ),
+]
+
 
 def _data_directory(option: Path | None) -> Path:
     """Pick the data root."""
@@ -66,6 +74,7 @@ def run(
     *,
     output_dir: Annotated[Path | None, typer.Option(help="Exact run directory")] = None,
     runs_dir: Annotated[Path, typer.Option(help="Parent of new runs")] = Path("runs"),
+    no_score: NoScoreOption = False,
     data_dir: DataOption = None,
 ) -> None:
     """Run an experiment and score it."""
@@ -77,12 +86,16 @@ def run(
             runs_directory=runs_dir,
             run_directory=output_dir,
             on_prediction=view.on_prediction,
+            score=not no_score,
         )
     except (ValueError, OSError, RuntimeError) as error:
         raise _fail(error) from error
     except KeyboardInterrupt:
         view.progress.print("Interrupted. Continue with `scribe-eval resume`.")
         raise typer.Exit(130) from None
+    if results is None:
+        print(f"Predictions saved. Score them with: scribe-eval score {directory}")
+        return
     view.results(results)
     print(f"Report: {directory / 'report.html'}")
 
@@ -94,6 +107,7 @@ def resume(
     retry_errors: Annotated[
         bool, typer.Option("--retry-errors", help="Run failed samples again")
     ] = False,
+    no_score: NoScoreOption = False,
     data_dir: DataOption = None,
 ) -> None:
     """Finish a run with the same samples and configuration."""
@@ -104,12 +118,16 @@ def resume(
             data_directory=_data_directory(data_dir),
             retry_errors=retry_errors,
             on_prediction=view.on_prediction,
+            score=not no_score,
         )
     except (ValueError, OSError, RuntimeError) as error:
         raise _fail(error) from error
     except KeyboardInterrupt:
         view.progress.print("Interrupted. Continue with `scribe-eval resume`.")
         raise typer.Exit(130) from None
+    if results is None:
+        print(f"Predictions saved. Score them with: scribe-eval score {run_directory}")
+        return
     view.results(results)
 
 

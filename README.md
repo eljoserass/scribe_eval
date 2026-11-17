@@ -60,9 +60,12 @@ and Clinical BERTScore (Torch), `--extra diarization` for DER and JER. See
 The PriMock57 experiments point to a local English Scribnic workflow in `workflows/`.
 Pipeline configuration isn't part of the harness, so that folder isn't versioned.
 
-Each run lands in `runs/`, with a `report.html`. To continue or rescore one:
+Each run lands in `runs/`, with a `report.html`. `--no-score` runs only the pipeline
+and saves its predictions, so a long run needs no judge or metric models; `score`
+finishes it later. To continue or rescore one:
 
 ```bash
+uv run scribe-eval run experiments/primock57_full.toml --no-score
 uv run scribe-eval resume runs/<run>
 uv run scribe-eval resume runs/<run> --retry-errors
 uv run scribe-eval score runs/<run>

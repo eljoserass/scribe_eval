@@ -8,7 +8,7 @@ from .clinical_bertscore import ClinicalBertScore
 from .diarization import DiarizationErrorRate, JaccardErrorRate
 from .grounding import Grounding
 from .link_correct import LinkCorrect
-from .note_format import CompressionRatio, FleschReadingEase, NoteSections, NoteWords
+from .note_format import CompressionRatio, FleschReadingEase, NoteWords
 from .overlap import Bleu, Levenshtein, Meteor, Rouge
 from .resources import (
     ElapsedSeconds,
@@ -38,7 +38,6 @@ _ALL: tuple[Metric, ...] = (
     Bleu("transcript_bleu", "transcript", "transcription"),
     DiarizationErrorRate(),
     JaccardErrorRate(),
-    NoteSections(),
     NoteWords(),
     FleschReadingEase(),
     CompressionRatio(),

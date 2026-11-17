@@ -33,8 +33,8 @@ class ValidationTests(unittest.TestCase):
         return plan_dataset(entry, self.dataset, FakePipeline())
 
     def test_transcript_input_makes_wer_not_applicable(self):
-        plan = self.plan("transcript", ("wer", "note_sections"))
-        self.assertEqual([metric.name for metric in plan.metrics], ["note_sections"])
+        plan = self.plan("transcript", ("wer", "note_words"))
+        self.assertEqual([metric.name for metric in plan.metrics], ["note_words"])
         self.assertIn("does not produce transcript", plan.not_applicable["wer"])
 
     def test_audio_input_allows_wer(self):
