@@ -61,7 +61,7 @@ class RunTests(unittest.TestCase):
         dataset = results["datasets"]["tiny"]
         self.assertEqual(dataset["n_failed"], 0)
         self.assertEqual(dataset["metrics"]["wer"]["global"], 0.0)
-        self.assertEqual(dataset["metrics"]["soap_sections"]["rate"], 1.0)
+        self.assertIn("note_words", dataset["metrics"])
         self.assertEqual(self.json("status.json")["state"], "completed")
         manifest = self.json("manifest.json")
         self.assertEqual(manifest["datasets"]["tiny"]["sample_ids"], ["a", "b", "c"])
@@ -100,7 +100,7 @@ class RunTests(unittest.TestCase):
         self.assertEqual(dataset["n_failed"], 1)
         self.assertIn("Note rejected", dataset["failures"]["b"])
         self.assertEqual(dataset["metrics"]["wer"]["n"], 3)
-        self.assertEqual(dataset["metrics"]["soap_sections"]["n"], 2)
+        self.assertEqual(dataset["metrics"]["note_words"]["n"], 2)
         self.assertEqual(dataset["metrics"]["elapsed_seconds"]["n"], 2)
 
     def test_interrupted_run_resumes_without_repeating_samples(self):
@@ -144,6 +144,25 @@ class RunTests(unittest.TestCase):
         )
         self.assertEqual(pipeline.runs, 0)
         self.assertEqual(results["datasets"]["tiny"]["metrics"]["wer"]["n"], 3)
+
+    def test_predictions_can_be_scored_later(self):
+        _, results = run_experiment(
+            self.experiment,
+            data_directory=self.data,
+            run_directory=self.run_directory,
+            pipeline=FakePipeline(),
+            score=False,
+        )
+        self.assertIsNone(results)
+        self.assertEqual(self.json("status.json")["state"], "predicted")
+        self.assertFalse((self.run_directory / "results.json").exists())
+        self.assertEqual(len(self.rows("predictions")), 3)
+
+        results = score_run(
+            self.run_directory, data_directory=self.data, pipeline=FakePipeline()
+        )
+        self.assertEqual(results["datasets"]["tiny"]["n_run"], 3)
+        self.assertEqual(self.json("status.json")["state"], "completed")
 
     def test_a_run_is_only_completed_after_scoring(self):
         states = []

@@ -44,19 +44,50 @@ uv run scribe-eval prepare primock57 --limit 3
 uv run scribe-eval run experiments/primock57_sample.toml
 ```
 
+TEME-v1 is the Spanish dataset: 90 consultations with TTS audio and no reference notes.
+Preparing it needs `ffmpeg`, and its experiments need a local judge for `grounding`,
+as described in [metrics](docs/metrics.md#link-and-correct).
+
+```bash
+uv run scribe-eval prepare teme
+uv run scribe-eval run experiments/teme_es.toml
+```
+
 Heavy metrics are optional extras: `uv sync --extra semantic` for BERTScore, BLEURT,
 and Clinical BERTScore (Torch), `--extra diarization` for DER and JER. See
 [metrics](docs/metrics.md#model-metrics).
 
-The PriMock57 experiments point to a local English Scribnic workflow in `workflows/`.
-Pipeline configuration isn't part of the harness, so that folder isn't versioned.
+The PriMock57 experiments use an English Scribnic workflow in `workflows/`: Whisper
+small with `language = "en"`, and an English SOAP prompt. Pipeline configuration isn't
+part of the harness, so it lives on the `scribnic-workflows` branch, not on main.
 
-Each run lands in `runs/`, with a `report.html`. To continue or rescore one:
+Each run lands in `runs/`, with a `report.html`. `--no-score` runs only the pipeline
+and saves its predictions, so a long run needs no judge or metric models; `score`
+finishes it later. To continue or rescore one:
 
 ```bash
+uv run scribe-eval run experiments/primock57_full.toml --no-score
 uv run scribe-eval resume runs/<run>
 uv run scribe-eval resume runs/<run> --retry-errors
 uv run scribe-eval score runs/<run>
+```
+
+To see what is running, what failed and why, or every run, with progress and times:
+
+```bash
+uv run scribe-eval runs
+uv run scribe-eval runs failed
+uv run scribe-eval runs all
+```
+
+A run whose process died shows as `stale`. Each run also keeps its predictions,
+artifacts, telemetry, and status in its directory.
+
+To compare pipelines or workflows, compare their runs. The table puts coverage and
+failures first, and warns when runs scored different samples or metric versions:
+
+```bash
+uv run scribe-eval compare runs/<run-a> runs/<run-b>
 ```
 
 `experiments/primock57_full.toml` runs all 57 consultations. That is hours on CPU,

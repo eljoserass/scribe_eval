@@ -6,8 +6,9 @@ from ..judge import Asker
 from ..types import Metric
 from .clinical_bertscore import ClinicalBertScore
 from .diarization import DiarizationErrorRate, JaccardErrorRate
+from .grounding import Grounding
 from .link_correct import LinkCorrect
-from .note_format import CompressionRatio, FleschReadingEase, NoteWords, SoapSections
+from .note_format import CompressionRatio, FleschReadingEase, NoteWords
 from .overlap import Bleu, Levenshtein, Meteor, Rouge
 from .resources import (
     ElapsedSeconds,
@@ -37,7 +38,6 @@ _ALL: tuple[Metric, ...] = (
     Bleu("transcript_bleu", "transcript", "transcription"),
     DiarizationErrorRate(),
     JaccardErrorRate(),
-    SoapSections(),
     NoteWords(),
     FleschReadingEase(),
     CompressionRatio(),
@@ -51,6 +51,7 @@ _ALL: tuple[Metric, ...] = (
     Bleurt(),
     LinkCorrect("link"),
     LinkCorrect("correct"),
+    Grounding(),
     ElapsedSeconds(),
     RealTimeFactor(),
     PeakMemory(),
@@ -70,6 +71,11 @@ for _metric in _ALL:
     GROUPS[_metric.group] = (*GROUPS.get(_metric.group, ()), _metric)
 
 
+def needs_judge(metric: Metric) -> bool:
+    """Tell whether a metric asks a language model, through `with_judge`."""
+    return hasattr(metric, "with_judge")
+
+
 def configure_metrics(
     settings: Mapping[str, Mapping[str, object]], *, judge: Asker | None
 ) -> dict[str, Metric]:
@@ -86,7 +92,7 @@ def configure_metrics(
         raise ValueError(f"Settings for unknown metrics: {', '.join(unknown)}")
     configured = {}
     for name, metric in METRICS.items():
-        if judge is not None and isinstance(metric, LinkCorrect):
+        if judge is not None and needs_judge(metric):
             metric = metric.with_judge(judge)
         if name in settings:
             if not hasattr(metric, "with_settings"):

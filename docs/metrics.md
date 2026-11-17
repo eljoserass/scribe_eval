@@ -14,7 +14,6 @@ metric or a whole group. Nothing here measures clinical safety yet.
 | `transcription_semantic` | `clinical_bertscore` | `transcript` | `transcript` | Global, sample mean |
 | `diarization` | `der` | `diarized_transcript` | `diarized_transcript` | Global, by cause |
 | `diarization` | `jer` | `diarized_transcript` | `diarized_transcript` | Mean |
-| `note_format` | `soap_sections` | `note` | — | Rate |
 | `note_format` | `note_words` | `note` | — | Mean, max |
 | `note_format` | `flesch_reading_ease` | `note` | — | Mean |
 | `note_format` | `compression_ratio` | `note` | `transcript` | Global |
@@ -25,6 +24,7 @@ metric or a whole group. Nothing here measures clinical safety yet.
 | `note_semantic` | `bertscore` | `note` | `note` | Mean, with precision and recall |
 | `note_semantic` | `bleurt` | `note` | `note` | Mean |
 | `link_correct` | `link`, `correct` | `note` | `note` | Mean |
+| `note_grounding` | `grounding` | `note` | `transcript` | Mean, pooled |
 | `resources` | `elapsed_seconds` | — | — | Mean, p95 |
 | `resources` | `real_time_factor` | — | `audio` | Global |
 | `resources` | `peak_rss_bytes` | — | — | Max |
@@ -51,9 +51,10 @@ Wang et al.'s Table 2, the reference for what to measure.
 | Coherence | BERTScore | Done, with the `semantic` extra |
 | Clarity | Flesch reading ease | Done |
 | Brevity | Compression ratio | Done. They don't define it; this is note words over conversation words |
-| Structuring | Structural precision/recall | Skipped: neither the paper nor its code defines it. `soap_sections` covers part of it |
+| Structuring | Structural precision/recall | Skipped: neither the paper nor its code defines it. Their judge rates structuring, planned below |
 | Relevance, completeness | ROUGE, BLEU, METEOR, BERTScore | Done |
 | Factuality | LINK, CORRECT | Done, replicating their code, with a swappable judge |
+| Factuality without a reference note | — | `grounding`, this project's prompts. Not validated |
 | Toxicity | toxic-bert | Skipped for now: near zero on clinical notes |
 | Human, LLM judges, simulations | Scorecards, rubrics, perturbations | Later |
 
@@ -78,18 +79,21 @@ their 0.33, so it isn't comparable across implementations.
 - **Global and sample mean.** Global WER is total errors over total words. The sample
   mean gives a short consultation the same weight as a long one. Global WER also
   splits into substitution, deletion, and insertion rates.
-- **Normalization is part of the metric.** Lowercase, spelled-out numbers, no
-  punctuation, no hesitations, in the sample's language. Human transcripts keep every
-  "um" and ASR drops them, which isn't an error: on two PriMock57 consultations they
-  added about 3.6 points of WER. Changing normalization means bumping the metric's
-  `version`, which `manifest.json` records.
+- **Normalization is part of the metric,** applied equally to prediction and
+  reference. It follows the Open ASR Leaderboard, through Whisper's normalizers,
+  copied verbatim from a pinned commit:
+  - English: `EnglishTextNormalizer`. Lowercase, no punctuation, no hesitations,
+    numbers as digits, American spelling.
+  - Other languages: `BasicTextNormalizer`, keeping accents, after `num2words` spells
+    digits out. No standard list of hesitations exists outside English, so they stay.
+
+  Human transcripts keep every "um" and ASR drops them, which isn't an error: on two
+  PriMock57 consultations they added about 3.6 points of WER. Changing normalization
+  means bumping the metric's `version`, which `manifest.json` records.
 - **Failed runs.** Artifact metrics still score what exists. Metrics that need no
   artifact only count successful runs. `n_failed` always sits next to the numbers.
 - **Same language.** A reference metric means nothing if the note and the reference
   are in different languages.
-- **`soap_sections`** checks that S, O, A, and P appear in order with nothing before
-  them. It can't see junk after the plan, like the `No consta | ...` line Bonsai 2B
-  sometimes adds.
 - **`resources`** read the [telemetry contract](architecture.md#telemetry), so they
   work for any pipeline that fills it in. Only `elapsed_seconds` and `real_time_factor`
   work for every pipeline, because the harness measures them. The rest are `n/a` when
@@ -104,7 +108,7 @@ their 0.33, so it isn't comparable across implementations.
 
 `medical_term_wer` follows [MedWER](https://github.com/Nordis-Tech/medwer): keep only
 terms from a fixed list, then align. A missed phrase is one error. It uses MedWER's list
-with this project's normalization, so numbers aren't comparable with theirs. English
+with Whisper's normalization, not theirs, so numbers aren't comparable. English
 only; other languages are skipped. It's precise but misses most serious errors. See
 [evaluation notes](evaluation_notes.md).
 
@@ -133,6 +137,33 @@ The judge is any OpenAI-compatible server, set in `[judge]`. It must be local un
 ```bash
 llama-server -m Qwen3.5-4B-Q8_0.gguf --port 8090 --alias judge -c 16384 --cache-ram 0
 ```
+
+## Grounding
+
+`grounding` asks how much of a note the reference transcript supports, in the style of
+[FActScore](https://arxiv.org/abs/2305.14251) and DocLens attribution. It needs no
+reference note, so it applies to TEME-v1. A judge splits the note into atomic facts,
+then checks each against the whole transcript, one call each.
+
+```text
+grounding = supported facts / extracted facts
+```
+
+- **Prompts** are this project's, in English and Spanish, chosen by the dataset's
+  language. Another language fails validation. Changing a prompt means bumping
+  `version`.
+- **Speakers** are shown when the reference has them, so a symptom the doctor asks
+  about isn't read as one the patient has.
+- **The transcript leads each verdict prompt,** so a server's prompt cache reuses it
+  across one note's facts. Keep the cache on for the judge, unlike for the pipeline.
+- **Aggregates:** `mean` weighs each note equally; `pooled` weighs each fact.
+- **Limits.** It measures precision, not completeness: a short, vague note scores
+  well. `note_words` should sit beside it. Against the reference transcript, an
+  unsupported fact may come from the note step or from transcription errors; the
+  attribution metric planned below separates them. A note with no facts gets no score.
+- **Not validated.** Neither the prompts nor any judge model have been checked against
+  human judgments. PriMock57's incorrect-statement annotations are the planned check.
+
 
 ## Model metrics
 
@@ -176,7 +207,10 @@ code, so three things differ:
 - It scored single sentences. Here each reference utterance is paired with the
   predicted words aligned to it, as for WER, and the sample weighs utterances by
   reference words.
-- Text is normalized as for WER, so numbers are spelled out.
+- Text is normalized as for WER. Numbers count as medical, as digits or spelled out.
+
+For Spanish, TEME's authors used `PlanTL-GOB-ES/roberta-base-biomedical-clinical-es`
+with k = 0.4; `model` and `terms` reproduce that setup given a term list.
 
 The paper's clinician preferences (CTP) are public, so the adaptation can be checked
 against its reported agreement. Not done yet.
@@ -237,12 +271,15 @@ Published metrics first; anything adapted says so.
 | Facts | Claim recall and precision against the reference note | A judge | [DocLens](https://github.com/yiqingxyq/DocLens) |
 | Facts | Completeness, conciseness, and groundedness: segments judged entailed, partly, or not, against the reference note or the transcript | A judge | [Symphony](https://arxiv.org/abs/2610.08161) |
 | Judge | Pairwise preference between two notes on eight PDSQI-9 dimensions, judged in both orders | A judge | [Symphony](https://arxiv.org/abs/2610.08161) |
-| Hallucination | Note facts checked against the reference transcript | A judge | [FActScore](https://arxiv.org/abs/2305.14251), DocLens attribution |
 | Attribution | The same check against the generated transcript: a fact absent from both was invented by the note step; present only in the generated one, it came from ASR | A judge | [Layered evaluation](https://www.medrxiv.org/content/10.64898/2026.09.22.26363642v1.full), preprint |
 | Negation | Assertion status: present, absent, possible | Rules or a model | NegEx, i2b2 2010, CliniKnote labels |
 | Medication | Drugs, doses, and coherence, with severity | Rules and a judge | TEME, AAMAS 2026 |
 | Timestamps | Boundary error against reference times, within a tolerance | Predicted segments | DER collars, forced-alignment work |
 | Judge | The 13 dimensions, in both modes | Validated local LLM | ADS_evaluation |
+| Omissions | Facts the transcript establishes, graded by severity, each checked against the note; flag a note missing a critical one | A judge | [OmissionBench](https://arxiv.org/abs/2608.31016); MED-OMIT |
+| Facts | Coverage, omission, contradiction against the reference note, then unmatched facts checked against the transcript | A judge | [Latif et al. 2026](https://proceedings.mlr.press/v333/latif26a.html) |
+| Sections | Reference-based metrics per section, as ACI-BENCH scores its four divisions | Section detection, as ACI-BENCH does with regular expressions | ACI-BENCH, CliniKnote |
+| ASR severity | Medication, dose, and consistency errors graded none, minor, or major | A judge | TEME, AAMAS 2026 |
 
 ## Validating judges
 
@@ -264,11 +301,40 @@ The judge's two modes fit `Requires`: one needs a `note` reference, the other a
 
 ## Planned perturbations
 
-From EvalLLM4Health and ADS_evaluation:
+A perturbation changes an input before the pipeline and creates a `variant`, in its own
+run, scored against the clean run of the same samples. Two kinds, since they answer different
+questions:
 
-- Mask 10% of the transcript, or specific data like lab dates.
-- Swap speakers.
-- Insert irrelevant conversation or inappropriate language.
-- Insert impossible lab values.
-- Use rare diseases or new drugs.
-- Add noise or cuts to the audio.
+**Robustness.** The reference stays valid, so the question is how much each metric
+drops against `clean`.
+
+| Layer | Perturbation | Source |
+| --- | --- | --- |
+| Audio | Noise at a set SNR, cuts, telephone codec, speed | Common ASR practice |
+| Transcript | Mask 10% of words, phrases, or sentences | EvalLLM4Health, ADS |
+| Transcript | Swap speaker labels on 10% of turns | EvalLLM4Health, ADS |
+| Transcript | Insert off-topic talk | EvalLLM4Health |
+| Transcript | Remove a drug, number, diagnosis, or symptom mention | Latif et al. 2026 |
+| Transcript | Flip a negation; swap a drug for a similar-sounding one | Latif et al. 2026 |
+
+**Safety probes.** The input carries a trap, so each needs its own check of how the
+note handled it: omitted, preserved, corrected, or flagged, as Latif et al. grade it.
+
+| Probe | Expected | Source |
+| --- | --- | --- |
+| Impossible values, like BP 500/300 | Flagged | EvalLLM4Health, ADS |
+| Profanity in the patient's speech | Dropped | EvalLLM4Health |
+| Rare diseases, new drugs | Kept as said, not swapped for known ones | ADS |
+
+What they found:
+
+- ADS, on 40 real prenatal visits: masking critical words lowered note scores mildly;
+  swapping 10% of speakers barely mattered. GPT-4o flagged impossible values in 2% of
+  cases and copied them unchanged in 60%. New drug names often broke transcription.
+- Latif et al., one error per PriMock57 transcript: redundancy recovered 38.6% of
+  errors, because the fact was said again elsewhere. Negation flips and similar drug
+  names propagated when it wasn't. The paper points to its code at
+  [LLM-Notes-Evaluation](https://github.com/ehsanlatif/LLM-Notes-Evaluation).
+
+Repeats come first: without the clean variation between generations, a variant's
+drop means little. ADS generated 5 notes per transcript.

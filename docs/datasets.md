@@ -21,7 +21,7 @@ data/primock57/
 
 ## Status
 
-Only Smoke and PriMock57 are integrated.
+Smoke, PriMock57, and TEME-v1 are integrated.
 
 | Dataset | Use | Artifacts | Size | Language | License |
 | --- | --- | --- | --- | --- | --- |
@@ -36,7 +36,7 @@ Only Smoke and PriMock57 are integrated.
 | [MedConv](https://huggingface.co/datasets/corti/med-conv) | Transcript to note, several languages | Transcript, note | 300 | en, da, de | Unreleased |
 
 **The main gap:** nothing here combines Spanish, real speech, and clinical notes.
-TEME-v1 is synthetic and has no notes. Note quality in the intended clinical setting
+TEME-v1 has TTS audio and no notes. Note quality in the intended clinical setting
 can't be claimed without local consultations and reviewed notes.
 
 ## Smoke
@@ -84,12 +84,30 @@ can show whether a metric tracks human judgment, without running a model.
 90 Spanish dialogues across 10 specialties, 30 of them cardiology. 2,330 turns, two
 speakers each, 3.96 h, about 2 min 38 s on average. A 94 MB ZIP.
 
-- **Audio is TTS.** WER will flatter a system: no noise, overlap, or spontaneous speech.
+- **Provenance.** Its paper says 23 dialogues are real anonymized consultations and
+  67 are synthetic, validated by a physician. The archive doesn't say which is which.
+- **Audio is TTS** from Gemini, for every dialogue. WER will flatter a system: no
+  overlap or spontaneous speech.
 - **No notes.** `context` is a short summary, not a note, and must not reach the prompt.
-- **Estimated timings.** `duration_estimate` isn't gold for DER.
-- **Conversion** still needs MP3 to WAV.
-- [TEME, AAMAS 2026](https://doi.org/10.65109/RHNT7438) is a related framework scoring
-  medication, dose, and coherence with judges and severity rules. Unread so far.
+- **Degraded on purpose.** The authors cut the audio to 8-bit, 8 kHz, to resemble a
+  clinic. Conversion resamples to 16 kHz WAV with ffmpeg, which matches the common
+  format but adds no bandwidth.
+- **Estimated timings.** `duration_estimate` isn't gold for DER, so times stay unset.
+- **IDs.** Samples are `dialogue1` to `dialogue90`, after the archive's file names.
+  `scenario_id` repeats across dialogues (83 distinct), so it goes to metadata.
+- **Speakers** keep the dataset's labels, like `Cardiólogo` or `PacienteMujer`.
+
+`scribe-eval prepare teme` downloads the 94 MB ZIP into `data/teme/raw/`, checks its
+MD5, and needs `ffmpeg` on the path. Prepared, all 90 dialogues take about 530 MB.
+`grounding` is the note metric meant for it.
+
+Villarroya-Martinez et al., [TEME: A Multi-Agent Evaluation Framework for Spanish
+Medical Speech Recognition](https://doi.org/10.65109/RHNT7438), AAMAS 2026, extended
+abstract, introduces the dataset. Three GPT-4o agents grade each transcript for
+medication, dose, and consistency as none, minor, or major, and any major error wins.
+Whisper had the lower WER, 3.3% against 4.7%, but 21 major errors against 12. Its
+Spanish Clinical BERTScore used `PlanTL-GOB-ES/roberta-base-biomedical-clinical-es`,
+k = 0.4, and terms taken from the dataset.
 
 ## ACI-BENCH
 
@@ -141,10 +159,60 @@ notes are generated from clinician-written cases and corrected by clinicians, th
 turned into noisy multi-speaker transcripts. No audio. Announced for release with a
 later paper; the link doesn't work yet and the license isn't stated.
 
+## Your own data
+
+Any data in the common format works, private data included: the harness reads it
+locally and never uploads it. Either write a converter and register it in
+`datasets/__init__.py`, or write the files directly:
+
+```python
+from pathlib import Path
+
+from scribe_eval.artifacts import Note, Transcript
+from scribe_eval.datasets.prepared import write_dataset, write_sample
+
+root = Path("data/my_clinic")
+write_sample(
+    root,
+    "visit_001",                    # letters, digits, `_`, `.`, `-`
+    [Transcript.from_text("..."), Note("...")],
+    {"audio_seconds": 312.0},       # needed for real-time factors on audio input
+)
+# Copy the recording to data/my_clinic/samples/visit_001/audio.wav: PCM16, mono, 16 kHz.
+write_dataset(
+    root, name="my_clinic", version="1", language="es", license="private", source="..."
+)
+```
+
+`write_dataset` lists what every sample provides, so validation knows which inputs
+and metrics apply. Then name the dataset in an experiment, like any other.
+
+- **Only transcription:** samples need `audio.wav` and a `transcript` or
+  `diarized_transcript`, with `metrics = ["transcription"]`. Note metrics then don't
+  apply. The pipeline still runs every step its workflow has, so give it a workflow
+  that stops at the transcript.
+- **Only notes:** a `transcript` and `input = "transcript"`. Without reference notes,
+  `note_format` and `note_grounding` still apply.
+- **Diarization:** a `diarized_transcript` whose segments have start and end times.
+- **Clinical data:** keep the judge local. A remote judge needs `allow_remote = true`,
+  and is only for public or synthetic data.
+
 ## Not usable
 
 Wang et al. use 40 real consultations that aren't public. Their repositories offer
 code and metrics, not data.
+
+ACI-BENCH's Table 1 lists the private corpora behind published scribe results. None
+can be downloaded; their papers describe what real data looks like at scale. Unread
+beyond that table.
+
+| Corpus | Paper | What it holds | Pairs |
+| --- | --- | --- | ---: |
+| 3M Health | Zhang et al., Findings of EMNLP 2021 | Conversations, with history of present illness written from them | 1,342 |
+| Abridge | Krishna et al., ACL 2021 | Conversations, with SOAP notes written from them | 6,862 |
+| Augmedix | Yim and Yetisgen, NLPMC 2021 | Real visits and notes, note sentences aligned to the dialogue | 500 |
+| emr.ai | Finley et al., NAACL 2018 | Dictations, not dialogues, with reports | 9,875 |
+| Nuance | Enarvi et al., NLPMC 2020 | Real conversations and reports | 802,000 |
 
 ## Unread
 

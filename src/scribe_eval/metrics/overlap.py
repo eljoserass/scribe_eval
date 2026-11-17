@@ -2,6 +2,16 @@
 
 Scores come from `rouge-score`, `sacrebleu`, `nltk`, and `rapidfuzz` on raw text, so
 they stay comparable with published numbers. These are diagnostics, not safety signals.
+
+References:
+    Lin, "ROUGE: A Package for Automatic Evaluation of Summaries", ACL Workshop 2004.
+    Papineni et al., "BLEU: a Method for Automatic Evaluation of Machine
+    Translation", ACL 2002; computed as in Post, "A Call for Clarity in Reporting
+    BLEU Scores", WMT 2018 (sacrebleu).
+    Banerjee and Lavie, "METEOR: An Automatic Metric for MT Evaluation with Improved
+    Correlation with Human Judgments", ACL Workshop 2005.
+    Moramarco et al., "Human Evaluation and Correlation with Automatic Metrics in
+    Consultation Note Generation", ACL 2022, for Levenshtein distance on notes.
 """
 
 import re
@@ -24,7 +34,12 @@ _bleu = BLEU(effective_order=True)
 
 
 class _WordTokenizer:
-    """Keep accented letters, which rouge-score's English tokenizer drops."""
+    """rouge-score's rule, lowercase and split on non-word characters, in any script.
+
+    Its default tokenizer keeps only `[a-z0-9]`, so `análisis` would become `an lisis`.
+    rouge-score asks for a custom tokenizer outside English, and this is the smallest
+    one that keeps its behavior. Only non-English ROUGE and METEOR use it.
+    """
 
     def tokenize(self, text: str) -> list[str]:
         """Split lowercase text into words."""

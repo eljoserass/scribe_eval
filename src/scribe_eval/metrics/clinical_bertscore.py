@@ -1,4 +1,7 @@
-"""Clinical BERTScore for transcripts (Shor et al., ClinicalNLP 2023).
+"""Clinical BERTScore for transcripts.
+
+Shor et al., "Clinical BERTScore: An Improved Measure of Automatic Speech Recognition
+Performance in Clinical Settings", ClinicalNLP 2023. https://arxiv.org/abs/2303.05737
 
     CBERTScore = k * BERTScore_medical + (1 - k) * BERTScore_all
 
@@ -13,7 +16,8 @@ Differences from the paper, which released no code:
 - It scored single sentences. A consultation is too long for BERT, so the transcript
   is split along reference utterances, following a word alignment, and each pair is
   scored. The sample's value weighs utterances by reference words.
-- Texts are normalized first, as for WER, so numbers are spelled out.
+- Texts are normalized first, as for WER. Numbers count as medical whether
+  normalization leaves them as digits, in English, or spells them out.
 
 Medical tokens are weighted through BERTScore's IDF weights: every occurrence of a
 token from a medical word counts, including inside a non-medical word. If one side of
@@ -38,8 +42,6 @@ from ..types import Prediction, Requires, Sample, Score, find_artifact
 from .models import LoadedModels, apply_settings, require_semantic, resolve_device
 from .text import normalize_text
 from .transcription import keep_terms
-
-_CONNECTORS = {"and", "y", "e"}
 
 
 def split_by_reference(
@@ -88,11 +90,22 @@ def split_by_reference(
 
 @lru_cache(maxsize=4)
 def _number_words(language: str) -> frozenset[str]:
-    """Words that spell numbers once normalized, like `three` or `hundred`."""
+    """Numbers that normalize to one word, like `tres` or `veintiuno`.
+
+    English normalization writes numbers as digits, so this is empty there. Words that
+    only appear inside longer spellings, like `y` in `treinta y uno`, are left out.
+    """
     words = set()
     for number in (*range(0, 101), 1000, 1_000_000):
-        words.update(normalize_text(str(number), language).split())
-    return frozenset(words - _CONNECTORS)
+        spelled = normalize_text(str(number), language).split()
+        if len(spelled) == 1 and not spelled[0].isdigit():
+            words.add(spelled[0])
+    return frozenset(words)
+
+
+def _is_number(word: str, numbers: frozenset[str]) -> bool:
+    """Tell whether a normalized word is a number, in digits or spelled out."""
+    return any(character.isdigit() for character in word) or word in numbers
 
 
 @lru_cache(maxsize=4)
@@ -113,7 +126,7 @@ def medical_words(
         word for term in keep_terms(text, terms, longest) for word in term.split("_")
     }
     numbers = _number_words(language)
-    return found | {word for word in text.split() if word in numbers}
+    return found | {word for word in text.split() if _is_number(word, numbers)}
 
 
 @dataclass(frozen=True)
@@ -122,7 +135,7 @@ class ClinicalBertScore:
 
     name: str = "clinical_bertscore"
     group: str = "transcription_semantic"
-    version: int = 1
+    version: int = 2
     requires: Requires = Requires(("transcript",), ("transcript",))
 
     # Settings, from [metric_settings.clinical_bertscore].

@@ -1,5 +1,10 @@
 """Note similarity from neural models: BERTScore and BLEURT.
 
+Zhang et al., "BERTScore: Evaluating Text Generation with BERT", ICLR 2020.
+https://arxiv.org/abs/1904.09675
+Sellam et al., "BLEURT: Learning Robust Metrics for Text Generation", ACL 2020.
+https://arxiv.org/abs/2004.04696
+
 Both need the `semantic` extra and download their weights on first use. Inputs longer
 than the model's limit, 512 tokens for the defaults, are truncated; `truncated` in
 the details flags it.

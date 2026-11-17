@@ -1,18 +1,23 @@
 """Entry points shared by the CLI and Python callers."""
 
+import os
 import platform
 import shutil
+import socket
+from collections.abc import Sequence
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from .aggregation import aggregate_run
+from .comparison import Comparison, RunRecord, compare
 from .config import ExperimentConfig, load_experiment
 from .datasets import CONVERTERS
 from .datasets.prepared import PreparedDataset
 from .hardware import describe_hardware
 from .inference import ProgressCallback, run_inference
 from .judge import Asker, Judge
+from .listing import RunFilter, RunSummary, summarize_runs
 from .metrics import configure_metrics
 from .pipelines import Pipeline, create_pipeline
 from .reporting import write_report
@@ -163,7 +168,11 @@ def _write_status(
     state: str,
     error: str | None = None,
 ) -> None:
-    """Summarize progress from the JSONL files, which remain the source of truth."""
+    """Summarize progress from the JSONL files, which remain the source of truth.
+
+    The process ID and host let `scribe-eval runs` tell a live run from one whose
+    process died without updating its state.
+    """
     datasets = {}
     for plan in plans:
         rows = latest_rows(read_jsonl(paths.predictions(plan.entry.name)))
@@ -179,6 +188,8 @@ def _write_status(
             "state": state,
             "error": error,
             "updated_at": datetime.now(timezone.utc).isoformat(),
+            "pid": os.getpid(),
+            "host": socket.gethostname(),
             "datasets": datasets,
         },
     )
@@ -201,8 +212,13 @@ def _execute(
     isolate_samples: bool,
     retry_errors: bool,
     on_prediction: ProgressCallback | None,
-) -> dict[str, object]:
-    """Run inference and scoring, keeping status truthful on every exit path."""
+    score: bool = True,
+) -> dict[str, object] | None:
+    """Run inference, then scoring unless told not to, keeping status truthful.
+
+    Without scoring, the run ends as `predicted`, with no results or report, and
+    `score_run` finishes it later.
+    """
 
     def track(prediction, position, total) -> None:
         """Refresh the status, then report to the caller."""
@@ -220,6 +236,9 @@ def _execute(
             retry_errors=retry_errors,
             on_prediction=track,
         )
+        if not score:
+            _write_status(paths, plans, "predicted")
+            return None
         _write_status(paths, plans, "scoring")
         results = _score(paths, plans)
         _write_status(paths, plans, "completed")
@@ -242,7 +261,8 @@ def run_experiment(
     pipeline: Pipeline | None = None,
     judge: Asker | None = None,
     on_prediction: ProgressCallback | None = None,
-) -> tuple[Path, dict[str, object]]:
+    score: bool = True,
+) -> tuple[Path, dict[str, object] | None]:
     """Validate an experiment, then run and score it.
 
     Args:
@@ -253,9 +273,11 @@ def run_experiment(
         pipeline: Replaces the configured pipeline, for tests.
         judge: Replaces the configured judge, for tests.
         on_prediction: Called after each sample.
+        score: False saves predictions only, to score later with `score_run`.
+            Metrics are still validated first.
 
     Returns:
-        The run directory and its results.
+        The run directory, and its results, or None when not scored.
 
     Raises:
         ValueError: If the experiment is invalid. Nothing is written in that case.
@@ -291,6 +313,7 @@ def run_experiment(
         isolate_samples=experiment.isolate_samples,
         retry_errors=False,
         on_prediction=on_prediction,
+        score=score,
     )
     return root, results
 
@@ -331,7 +354,8 @@ def resume_run(
     pipeline: Pipeline | None = None,
     judge: Asker | None = None,
     on_prediction: ProgressCallback | None = None,
-) -> dict[str, object]:
+    score: bool = True,
+) -> dict[str, object] | None:
     """Finish a run with the same samples and configuration.
 
     Args:
@@ -341,9 +365,10 @@ def resume_run(
         pipeline: Replaces the configured pipeline, for tests.
         judge: Replaces the configured judge, for tests.
         on_prediction: Called after each sample.
+        score: False saves predictions only, to score later with `score_run`.
 
     Returns:
-        The run's results.
+        The run's results, or None when not scored.
 
     Raises:
         ValueError: If the pipeline or a dataset changed.
@@ -356,6 +381,7 @@ def resume_run(
         isolate_samples=load_experiment(paths.experiment).isolate_samples,
         retry_errors=retry_errors,
         on_prediction=on_prediction,
+        score=score,
     )
 
 
@@ -373,3 +399,45 @@ def score_run(
     _write_status(paths, plans, "completed")
     write_report(paths, plans, results, pipeline)
     return results
+
+
+def compare_runs(run_directories: Sequence[Path]) -> Comparison:
+    """Put finished runs side by side, reading only what they saved.
+
+    Args:
+        run_directories: Two or more run directories, each with `results.json`.
+
+    Returns:
+        Values by dataset, metric, and statistic, with comparability warnings.
+
+    Raises:
+        ValueError: If fewer than two runs are given, a run was never scored, or
+            two runs share a directory name.
+        FileNotFoundError: If a run directory does not exist.
+    """
+    records = []
+    for directory in run_directories:
+        paths = RunPaths(Path(directory).expanduser().resolve(strict=True))
+        if not paths.results.exists():
+            raise ValueError(f"{paths.root.name} has no results; score it first.")
+        records.append(
+            RunRecord(
+                paths.root.name,
+                read_json(paths.manifest),
+                read_json(paths.status),
+                read_json(paths.results),
+            )
+        )
+    return compare(records)
+
+
+def list_runs(
+    runs_directory: Path = Path("runs"), *, which: RunFilter = RunFilter.ALL
+) -> list[RunSummary]:
+    """List runs with their progress, newest first, reading only saved records.
+
+    Args:
+        runs_directory: Parent of run directories.
+        which: `running`, `failed`, or `all`; see `summarize_runs`.
+    """
+    return summarize_runs(runs_directory, which=which)

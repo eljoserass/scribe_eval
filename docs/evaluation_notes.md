@@ -2,6 +2,7 @@
 
 What the literature says about measuring scribes, and what follows for this project.
 Read in November 2026: mostly results sections and abstracts, not every paper in full.
+ACI-BENCH and ADS details come partly from summaries of their full text.
 
 ## Findings
 
@@ -43,6 +44,34 @@ Read in November 2026: mostly results sections and abstracts, not every paper in
   checking each one, recovered part of it. The same preprint found a material
   discrepancy with the transcript in all 53 PriMock57 clinician notes it audited,
   10.7 per note on average. Its benchmark (CC BY 4.0) and harness (MIT) are public. [12]
+- **Flag missing critical facts; don't average coverage.** In the same preprint, mean
+  coverage barely moved between clean notes and notes with an omission, 0.953 against
+  0.929. Flagging any note missing a fact graded critical caught 24.6% of omissions at
+  2.7% false alarms. Facts were extracted from the transcript without seeing the note,
+  about 39 per note. [12]
+- **Reference notes miss what the transcript supports.** Of generated content absent
+  from PriMock57's notes, 92% was supported by the transcript. Across eight LLMs,
+  omissions were 8.5–24.0% of facts and contradictions 6.2–7.9%. So unmatched facts
+  need a second check against the transcript before they count as invented. [15]
+- **Redundancy hides transcription errors.** With one error injected per transcript,
+  38.6% were recovered because the fact came up again. Negation flips and
+  similar-sounding drugs propagated when it didn't. [15]
+- **ASR errors show up in judges, not in BERTScore.** Summaries from ASR transcripts
+  matched BERTScore against references as well as those from human transcripts, but
+  an LLM judge scored them 2 to 5 points lower. That judge, o1, correlated 0.816 with
+  clinical experts on 6 criteria, positives and negatives among them. [17]
+- **Lower WER, more dangerous errors.** In Spanish, Whisper beat a medical ASR on WER,
+  3.3% against 4.7%, yet made 21 major clinical errors against 12, judged by three
+  GPT-4o agents on medication, dose, and consistency. Its Clinical BERTScore gave 0.97
+  to a drug name that doesn't exist. [16]
+- **Judges agree least on form.** GPT-4o matched clinicians well on relevance,
+  completeness, and comprehension, poorly on fluency, brevity, coherence, and
+  structuring. Clinicians agreed with each other about 54% of the time. [2]
+- **Sections need detection rules.** ACI-BENCH splits notes into four divisions with
+  regular expressions; a short generated section can go undetected and score as
+  empty. CliniKnote scores 15 sections, or 4 groups of them. [11]
+- **Publish the facts behind the counts.** One open leaderboard scores omissions
+  against a fact list it doesn't release, so its counts can't be checked.
 
 ## Checks in this project
 
@@ -85,3 +114,8 @@ four without running a scribe.
 12. [LLM Judges Verify Presence, Not Absence](https://arxiv.org/abs/2608.31016), 2026.
 13. Xie et al., [DocLens](https://arxiv.org/abs/2311.09581), ACL 2024.
 14. Varab et al., [Symphony for Text Generation: Benchmarking Clinical Note Generation](https://arxiv.org/abs/2610.08161), arXiv 2026.
+15. Latif et al., [Evaluating Robustness of LLM-Based Ambient Scribes for SOAP Note Generation](https://proceedings.mlr.press/v333/latif26a.html), CHIL 2026, PMLR 333.
+16. Villarroya-Martinez et al., [TEME: A Multi-Agent Evaluation Framework for Spanish Medical Speech Recognition](https://doi.org/10.65109/RHNT7438), AAMAS 2026, extended abstract.
+17. Sanni et al., [Afrispeech-Dialog: A Benchmark Dataset for Spontaneous English Conversations in Healthcare and Beyond](https://aclanthology.org/2025.naacl-long.426/), NAACL 2025.
+18. Schumacher et al., [Extrinsically-Focused Evaluation of Omissions in Medical Summarization](https://arxiv.org/abs/2311.08303), ML4H 2024. MED-OMIT.
+19. Srivastav et al., [Open ASR Leaderboard](https://arxiv.org/abs/2510.06961), arXiv 2025. Code: [open_asr_leaderboard](https://github.com/huggingface/open_asr_leaderboard).

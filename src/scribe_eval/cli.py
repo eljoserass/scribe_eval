@@ -6,7 +6,15 @@ from typing import Annotated
 
 import typer
 
-from .application import prepare_dataset, resume_run, run_experiment, score_run
+from .application import (
+    compare_runs,
+    list_runs,
+    prepare_dataset,
+    resume_run,
+    run_experiment,
+    score_run,
+)
+from .listing import RunFilter
 from .terminal import TerminalView
 
 app = typer.Typer(
@@ -18,6 +26,14 @@ app = typer.Typer(
 DataOption = Annotated[
     Path | None,
     typer.Option(help="Prepared datasets. Defaults to $SCRIBE_EVAL_DATA, then data/"),
+]
+
+NoScoreOption = Annotated[
+    bool,
+    typer.Option(
+        "--no-score",
+        help="Only run the pipeline; score later with `scribe-eval score`",
+    ),
 ]
 
 
@@ -34,7 +50,7 @@ def _fail(error: Exception) -> typer.Exit:
 
 @app.command()
 def prepare(
-    name: Annotated[str, typer.Argument(help="Dataset: primock57 or smoke")],
+    name: Annotated[str, typer.Argument(help="Dataset: primock57, teme, or smoke")],
     *,
     source: Annotated[Path | None, typer.Option(help="Local raw data")] = None,
     sample_id: Annotated[
@@ -60,6 +76,7 @@ def run(
     *,
     output_dir: Annotated[Path | None, typer.Option(help="Exact run directory")] = None,
     runs_dir: Annotated[Path, typer.Option(help="Parent of new runs")] = Path("runs"),
+    no_score: NoScoreOption = False,
     data_dir: DataOption = None,
 ) -> None:
     """Run an experiment and score it."""
@@ -71,12 +88,16 @@ def run(
             runs_directory=runs_dir,
             run_directory=output_dir,
             on_prediction=view.on_prediction,
+            score=not no_score,
         )
     except (ValueError, OSError, RuntimeError) as error:
         raise _fail(error) from error
     except KeyboardInterrupt:
         view.progress.print("Interrupted. Continue with `scribe-eval resume`.")
         raise typer.Exit(130) from None
+    if results is None:
+        print(f"Predictions saved. Score them with: scribe-eval score {directory}")
+        return
     view.results(results)
     print(f"Report: {directory / 'report.html'}")
 
@@ -88,6 +109,7 @@ def resume(
     retry_errors: Annotated[
         bool, typer.Option("--retry-errors", help="Run failed samples again")
     ] = False,
+    no_score: NoScoreOption = False,
     data_dir: DataOption = None,
 ) -> None:
     """Finish a run with the same samples and configuration."""
@@ -98,12 +120,16 @@ def resume(
             data_directory=_data_directory(data_dir),
             retry_errors=retry_errors,
             on_prediction=view.on_prediction,
+            score=not no_score,
         )
     except (ValueError, OSError, RuntimeError) as error:
         raise _fail(error) from error
     except KeyboardInterrupt:
         view.progress.print("Interrupted. Continue with `scribe-eval resume`.")
         raise typer.Exit(130) from None
+    if results is None:
+        print(f"Predictions saved. Score them with: scribe-eval score {run_directory}")
+        return
     view.results(results)
 
 
@@ -121,6 +147,40 @@ def score(
     view = TerminalView()
     view.results(results)
     print(f"Report: {Path(run_directory).resolve() / 'report.html'}")
+
+
+@app.command()
+def compare(
+    run_directories: Annotated[
+        list[Path], typer.Argument(help="Two or more scored runs")
+    ],
+) -> None:
+    """Show finished runs side by side, warning when they are not comparable."""
+    try:
+        comparison = compare_runs(run_directories)
+    except (ValueError, OSError) as error:
+        raise _fail(error) from error
+    TerminalView().comparison(comparison)
+
+
+@app.command()
+def runs(
+    which: Annotated[
+        RunFilter, typer.Argument(help="running, failed, or all")
+    ] = RunFilter.RUNNING,
+    *,
+    runs_dir: Annotated[Path, typer.Option(help="Parent of runs")] = Path("runs"),
+) -> None:
+    """List runs with their progress: what is running, what failed, or everything."""
+    try:
+        summaries = list_runs(runs_dir, which=which)
+    except (ValueError, OSError) as error:
+        raise _fail(error) from error
+    view = TerminalView()
+    if not summaries:
+        view.no_runs(list_runs(runs_dir), which=which.value)
+        return
+    view.runs(summaries, show_reasons=which is RunFilter.FAILED)
 
 
 def main() -> None:

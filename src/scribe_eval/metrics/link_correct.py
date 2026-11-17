@@ -1,5 +1,10 @@
 """LINK and CORRECT, replicating Wang et al.'s ADS_evaluation.
 
+Wang et al., "An evaluation framework for ambient digital scribing tools in clinical
+applications", npj Digital Medicine 8, 358 (2025).
+https://doi.org/10.1038/s41746-025-01622-1
+Code: https://github.com/AutoEvaluation/ADS_evaluation
+
 A judge extracts facts from the generated and reference notes, then decides, fact by
 fact, whether a reference fact supports each generated one. With `supported` facts:
 
