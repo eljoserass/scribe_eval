@@ -1,7 +1,9 @@
 """Entry points shared by the CLI and Python callers."""
 
+import os
 import platform
 import shutil
+import socket
 from collections.abc import Sequence
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version
@@ -15,6 +17,7 @@ from .datasets.prepared import PreparedDataset
 from .hardware import describe_hardware
 from .inference import ProgressCallback, run_inference
 from .judge import Asker, Judge
+from .listing import RunFilter, RunSummary, summarize_runs
 from .metrics import configure_metrics
 from .pipelines import Pipeline, create_pipeline
 from .reporting import write_report
@@ -165,7 +168,11 @@ def _write_status(
     state: str,
     error: str | None = None,
 ) -> None:
-    """Summarize progress from the JSONL files, which remain the source of truth."""
+    """Summarize progress from the JSONL files, which remain the source of truth.
+
+    The process ID and host let `scribe-eval runs` tell a live run from one whose
+    process died without updating its state.
+    """
     datasets = {}
     for plan in plans:
         rows = latest_rows(read_jsonl(paths.predictions(plan.entry.name)))
@@ -181,6 +188,8 @@ def _write_status(
             "state": state,
             "error": error,
             "updated_at": datetime.now(timezone.utc).isoformat(),
+            "pid": os.getpid(),
+            "host": socket.gethostname(),
             "datasets": datasets,
         },
     )
@@ -420,3 +429,15 @@ def compare_runs(run_directories: Sequence[Path]) -> Comparison:
             )
         )
     return compare(records)
+
+
+def list_runs(
+    runs_directory: Path = Path("runs"), *, which: RunFilter = RunFilter.ALL
+) -> list[RunSummary]:
+    """List runs with their progress, newest first, reading only saved records.
+
+    Args:
+        runs_directory: Parent of run directories.
+        which: `running`, `failed`, or `all`; see `summarize_runs`.
+    """
+    return summarize_runs(runs_directory, which=which)

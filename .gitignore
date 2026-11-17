@@ -15,4 +15,3 @@ wheels/
 # Datasets and generated evaluation runs
 /data/
 /runs/
-/workflows/

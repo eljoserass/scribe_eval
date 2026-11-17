@@ -202,6 +202,7 @@ src/scribe_eval/
 ├── scoring.py        # second phase
 ├── aggregation.py    # scores → results
 ├── comparison.py     # finished runs side by side
+├── listing.py        # run progress for `scribe-eval runs`
 ├── reporting.py      # results → report.html
 ├── judge.py          # LLM client with a disk cache
 ├── storage.py        # run layout, JSONL, predictions

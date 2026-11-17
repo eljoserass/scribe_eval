@@ -57,8 +57,8 @@ Heavy metrics are optional extras: `uv sync --extra semantic` for BERTScore, BLE
 and Clinical BERTScore (Torch), `--extra diarization` for DER and JER. See
 [metrics](docs/metrics.md#model-metrics).
 
-The PriMock57 experiments point to a local English Scribnic workflow in `workflows/`.
-Pipeline configuration isn't part of the harness, so that folder isn't versioned.
+The PriMock57 experiments use the English Scribnic workflow in `workflows/`: Whisper
+small with `language = "en"`, and an English SOAP prompt.
 
 Each run lands in `runs/`, with a `report.html`. `--no-score` runs only the pipeline
 and saves its predictions, so a long run needs no judge or metric models; `score`
@@ -70,6 +70,17 @@ uv run scribe-eval resume runs/<run>
 uv run scribe-eval resume runs/<run> --retry-errors
 uv run scribe-eval score runs/<run>
 ```
+
+To see what is running, what failed and why, or every run, with progress and times:
+
+```bash
+uv run scribe-eval runs
+uv run scribe-eval runs failed
+uv run scribe-eval runs all
+```
+
+A run whose process died shows as `stale`. Each run also keeps its predictions,
+artifacts, telemetry, and status in its directory.
 
 To compare pipelines or workflows, compare their runs. The table puts coverage and
 failures first, and warns when runs scored different samples or metric versions:

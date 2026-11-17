@@ -8,11 +8,13 @@ import typer
 
 from .application import (
     compare_runs,
+    list_runs,
     prepare_dataset,
     resume_run,
     run_experiment,
     score_run,
 )
+from .listing import RunFilter
 from .terminal import TerminalView
 
 app = typer.Typer(
@@ -159,6 +161,26 @@ def compare(
     except (ValueError, OSError) as error:
         raise _fail(error) from error
     TerminalView().comparison(comparison)
+
+
+@app.command()
+def runs(
+    which: Annotated[
+        RunFilter, typer.Argument(help="running, failed, or all")
+    ] = RunFilter.RUNNING,
+    *,
+    runs_dir: Annotated[Path, typer.Option(help="Parent of runs")] = Path("runs"),
+) -> None:
+    """List runs with their progress: what is running, what failed, or everything."""
+    try:
+        summaries = list_runs(runs_dir, which=which)
+    except (ValueError, OSError) as error:
+        raise _fail(error) from error
+    view = TerminalView()
+    if not summaries:
+        view.no_runs(list_runs(runs_dir), which=which.value)
+        return
+    view.runs(summaries, show_reasons=which is RunFilter.FAILED)
 
 
 def main() -> None:

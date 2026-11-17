@@ -1,9 +1,13 @@
 """Terminal presentation. The core never imports this."""
 
+from datetime import datetime
+
 from rich.console import Console
+from rich.progress_bar import ProgressBar
 from rich.table import Table
 
 from .comparison import Comparison, DatasetComparison
+from .listing import RunSummary, states
 from .types import Prediction
 
 
@@ -43,6 +47,44 @@ class TerminalView:
             self.output.print(table)
             for sample_id, error in dataset["failures"].items():
                 self.output.print(f"Failed {sample_id}: {error}", markup=False)
+
+    def runs(self, summaries: list[RunSummary], *, show_reasons: bool) -> None:
+        """Print runs as a table: name, state, progress, and times.
+
+        Args:
+            summaries: Runs to show, already filtered and sorted.
+            show_reasons: Add a column saying why each run failed.
+        """
+        table = Table(caption=_runs_caption(summaries), caption_justify="left")
+        table.add_column("Run", no_wrap=True)
+        table.add_column("State", no_wrap=True)
+        table.add_column("Progress", no_wrap=True)
+        table.add_column("Failed", justify="right")
+        table.add_column("Started", no_wrap=True)
+        table.add_column("Ended", no_wrap=True)
+        if show_reasons:
+            table.add_column("Reason", overflow="fold", min_width=20)
+        for summary in summaries:
+            row = [
+                _run_label(summary.directory.name),
+                _state_text(summary.state),
+                _progress(summary),
+                str(summary.failed),
+                _time_text(summary.started_at),
+                _time_text(summary.ended_at) if not summary.active else "running",
+            ]
+            if show_reasons:
+                row.append(summary.reason or "")
+            table.add_row(*row)
+        self.output.print(table)
+
+    def no_runs(self, every_run: list[RunSummary], *, which: str) -> None:
+        """Say that nothing matched, with a count of runs by state."""
+        counts = ", ".join(
+            f"{count} {state}" for state, count in states(every_run).items()
+        )
+        suffix = f" Runs here: {counts}." if counts else ""
+        self.output.print(f"No {which} runs.{suffix}", markup=False)
 
     def comparison(self, comparison: Comparison) -> None:
         """Print a legend of runs, then one table per dataset with a column per run.
@@ -100,3 +142,51 @@ def _format_value(value: float | None) -> str:
     if value is None:
         return "-"
     return f"{value:.4g}"
+
+
+_STATE_STYLES = {
+    "running": "cyan",
+    "scoring": "cyan",
+    "completed": "green",
+    "predicted": "green",
+    "failed": "red",
+    "stale": "red",
+    "interrupted": "yellow",
+}
+
+
+def _state_text(state: str) -> str:
+    """Color a state for the table."""
+    style = _STATE_STYLES.get(state)
+    return f"[{style}]{state}[/{style}]" if style else state
+
+
+def _progress(summary: RunSummary) -> Table:
+    """Draw a progress bar with its count beside it."""
+    grid = Table.grid(padding=(0, 1))
+    total = max(summary.selected, 1)
+    grid.add_row(
+        ProgressBar(total=total, completed=summary.done, width=10),
+        f"{summary.done}/{summary.selected}",
+    )
+    return grid
+
+
+def _time_text(moment: datetime | None) -> str:
+    """Show a timestamp in local time, to the minute."""
+    if moment is None:
+        return "—"
+    return moment.astimezone().strftime("%m-%d %H:%M")
+
+
+def _run_label(directory_name: str) -> str:
+    """Drop the leading date and time from a run directory name; Started shows it."""
+    parts = directory_name.split("-", 2)
+    has_stamp = len(parts) == 3 and parts[0].isdigit() and parts[1].isdigit()
+    return parts[2] if has_stamp else directory_name
+
+
+def _runs_caption(summaries: list[RunSummary]) -> str:
+    """Say where the listed runs live, since names omit their timestamp."""
+    parents = {str(summary.directory.parent) for summary in summaries}
+    return f"In {parents.pop()}/" if len(parents) == 1 else ""
