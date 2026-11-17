@@ -35,6 +35,19 @@ Clinician workflow and IT integration are out of scope for now.
 Needs [uv](https://docs.astral.sh/uv/). The Scribnic pipeline also needs a Scribnic
 checkout next to this repository.
 
+To evaluate Scribnic on PriMock57, on Linux or macOS on Apple Silicon, one script
+installs everything, calls Scribnic's own `setup` for the English workflow, and converts
+the data. Then check the machine on two consultations before the full run:
+
+```bash
+scripts/setup_scribnic.sh            # all 57 consultations; pass a number for fewer
+uv run scribe-eval run experiments/primock57_smoke.toml
+uv run scribe-eval run experiments/primock57_full.toml --no-score
+uv run scribe-eval runs              # from another terminal
+```
+
+Without Scribnic:
+
 ```bash
 uv sync
 uv run scribe-eval prepare smoke

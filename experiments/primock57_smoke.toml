@@ -1,0 +1,15 @@
+# Two consultations, to check a machine end to end before the full run.
+# Cheap metrics only: no judge, no neural models.
+name = "primock57-smoke"
+
+[pipeline]
+type = "scribnic"
+workflow = "../workflows/whisper_small_bonsai_en.toml"
+
+[[datasets]]
+name = "primock57"
+split = "all"
+input = "audio"
+limit = 2
+seed = 42
+metrics = ["transcription", "note_format", "note_reference", "resources"]
