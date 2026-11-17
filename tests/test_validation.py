@@ -1,5 +1,6 @@
 """Check that bad combinations are caught before loading any model."""
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -12,6 +13,7 @@ from scribe_eval.datasets.prepared import (
     write_dataset,
     write_sample,
 )
+from scribe_eval.metrics import METRICS
 from scribe_eval.validation import plan_dataset
 
 from .helpers import FakePipeline, write_tiny_dataset
@@ -31,8 +33,8 @@ class ValidationTests(unittest.TestCase):
         return plan_dataset(entry, self.dataset, FakePipeline())
 
     def test_transcript_input_makes_wer_not_applicable(self):
-        plan = self.plan("transcript", ("wer", "soap_sections"))
-        self.assertEqual([metric.name for metric in plan.metrics], ["soap_sections"])
+        plan = self.plan("transcript", ("wer", "note_sections"))
+        self.assertEqual([metric.name for metric in plan.metrics], ["note_sections"])
         self.assertIn("does not produce transcript", plan.not_applicable["wer"])
 
     def test_audio_input_allows_wer(self):
@@ -61,8 +63,22 @@ class ValidationTests(unittest.TestCase):
             plan_dataset(entry, PreparedDataset(root), FakePipeline())
 
     def test_judged_metrics_need_a_judge(self):
-        with self.assertRaisesRegex(ValueError, "judge"):
-            self.plan("audio", ("link_correct",))
+        for metrics in (("link_correct",), ("grounding",)):
+            with self.subTest(metrics=metrics):
+                with self.assertRaisesRegex(ValueError, "judge"):
+                    self.plan("audio", metrics)
+
+    def test_judged_metric_without_prompts_for_the_language_is_an_error(self):
+        root = self.root.parent / "german"
+        write_tiny_dataset(root, ["a"])
+        description = json.loads((root / "dataset.json").read_text())
+        (root / "dataset.json").write_text(
+            json.dumps({**description, "language": "de"})
+        )
+        entry = DatasetEntry("german", "all", "audio", ("grounding",))
+        metrics = {"grounding": METRICS["grounding"].with_judge(object())}
+        with self.assertRaisesRegex(ValueError, "not 'de'"):
+            plan_dataset(entry, PreparedDataset(root), FakePipeline(), metrics=metrics)
 
     def test_unprepared_dataset_explains_what_to_do(self):
         with self.assertRaisesRegex(ValueError, "scribe-eval prepare"):

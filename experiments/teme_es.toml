@@ -1,0 +1,23 @@
+# Spanish audio to note on TEME-v1. TTS audio flatters WER, and there are no
+# reference notes: grounding checks the note against the script with a local judge.
+name = "teme-es"
+
+[pipeline]
+type = "scribnic"
+workflow = "whisper_bonsai"
+
+[judge]
+base_url = "http://127.0.0.1:8090/v1"
+model = "judge"
+
+[judge.options]
+max_tokens = 4096
+chat_template_kwargs = { enable_thinking = false }
+
+[[datasets]]
+name = "teme"
+split = "all"
+input = "audio"
+limit = 10
+seed = 42
+metrics = ["transcription", "note_format", "note_grounding", "resources"]

@@ -5,8 +5,7 @@ from dataclasses import dataclass
 
 from .config import DatasetEntry
 from .datasets.prepared import PreparedDataset
-from .metrics import resolve_metrics
-from .metrics.link_correct import LinkCorrect
+from .metrics import needs_judge, resolve_metrics
 from .pipelines import Pipeline
 from .selection import select_ids
 from .types import Metric, satisfies
@@ -47,7 +46,8 @@ def plan_dataset(
     Raises:
         ValueError: If the dataset lacks the input or a reference a metric needs,
             the pipeline doesn't accept the input, a metric needs a missing judge,
-            or a model metric's extra isn't installed.
+            a model metric's extra isn't installed, or a metric doesn't support the
+            dataset's language.
     """
     if entry.split not in dataset.splits:
         raise ValueError(f"Dataset {dataset.name!r} has no split {entry.split!r}.")
@@ -58,7 +58,7 @@ def plan_dataset(
     planned = []
     not_applicable = {}
     for metric in resolve_metrics(entry.metrics, metrics):
-        if isinstance(metric, LinkCorrect) and metric.judge is None:
+        if needs_judge(metric) and metric.judge is None:
             raise ValueError(f"Metric {metric.name!r} needs a [judge] table.")
         for kind in metric.requires.reference:
             if not satisfies(dataset.provides, kind):

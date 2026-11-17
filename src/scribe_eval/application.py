@@ -2,11 +2,13 @@
 
 import platform
 import shutil
+from collections.abc import Sequence
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from .aggregation import aggregate_run
+from .comparison import Comparison, RunRecord, compare
 from .config import ExperimentConfig, load_experiment
 from .datasets import CONVERTERS
 from .datasets.prepared import PreparedDataset
@@ -373,3 +375,33 @@ def score_run(
     _write_status(paths, plans, "completed")
     write_report(paths, plans, results, pipeline)
     return results
+
+
+def compare_runs(run_directories: Sequence[Path]) -> Comparison:
+    """Put finished runs side by side, reading only what they saved.
+
+    Args:
+        run_directories: Two or more run directories, each with `results.json`.
+
+    Returns:
+        Values by dataset, metric, and statistic, with comparability warnings.
+
+    Raises:
+        ValueError: If fewer than two runs are given, a run was never scored, or
+            two runs share a directory name.
+        FileNotFoundError: If a run directory does not exist.
+    """
+    records = []
+    for directory in run_directories:
+        paths = RunPaths(Path(directory).expanduser().resolve(strict=True))
+        if not paths.results.exists():
+            raise ValueError(f"{paths.root.name} has no results; score it first.")
+        records.append(
+            RunRecord(
+                paths.root.name,
+                read_json(paths.manifest),
+                read_json(paths.status),
+                read_json(paths.results),
+            )
+        )
+    return compare(records)

@@ -35,14 +35,19 @@ def sample(**artifacts) -> Sample:
 
 
 class TextTests(unittest.TestCase):
-    def test_normalization_spells_numbers_and_drops_punctuation(self):
-        self.assertEqual(normalize_text("Take 3, Doctor!", "en"), "take three doctor")
+    def test_english_writes_numbers_as_digits_and_drops_punctuation(self):
+        self.assertEqual(normalize_text("Take three, Doctor!", "en"), "take 3 doctor")
 
-    def test_normalization_drops_hesitations(self):
+    def test_english_drops_hesitations(self):
         self.assertEqual(normalize_text("Um, yeah, uh, okay", "en"), "yeah okay")
 
-    def test_normalization_uses_the_language(self):
-        self.assertEqual(normalize_text("Toma 3", "es"), "toma tres")
+    def test_other_languages_spell_numbers_and_keep_accents(self):
+        self.assertEqual(
+            normalize_text("Toma 3, ¿análisis?", "es"), "toma tres análisis"
+        )
+
+    def test_unknown_languages_keep_digits(self):
+        self.assertEqual(normalize_text("abc 3", "xx"), "abc 3")
 
 
 class TranscriptionTests(unittest.TestCase):
@@ -72,10 +77,9 @@ class TranscriptionTests(unittest.TestCase):
 
 
 class NoteTests(unittest.TestCase):
-    def soap(self, text: str) -> float:
+    def soap(self, text: str, metric=METRICS["note_sections"]) -> float:
         """Score a note's sections."""
-        note = Note(text)
-        return METRICS["soap_sections"].score(prediction(note=note), sample()).value
+        return metric.score(prediction(note=Note(text)), sample()).value
 
     def test_accepts_plain_and_markdown_labels(self):
         self.assertEqual(self.soap("S — a\nO — b\nA — c\nP — d"), 1.0)
@@ -86,7 +90,27 @@ class NoteTests(unittest.TestCase):
     def test_rejects_a_missing_section_a_title_and_wrong_order(self):
         self.assertEqual(self.soap("S — a\nO — b\nP — d"), 0.0)
         self.assertEqual(self.soap("SOAP note\nS — a\nO — b\nA — c\nP — d"), 0.0)
-        self.assertIsNone(section_positions("O — b\nS — a\nA — c\nP — d"))
+        self.assertEqual(self.soap("O — b\nS — a\nA — c\nP — d"), 0.0)
+
+    def test_accepts_headings_on_their_own_line(self):
+        note = "## Subjective\na\n## Objective\nb\n## Assessment\nc\n## Plan\nd"
+        self.assertEqual(self.soap(note), 1.0)
+
+    def test_reports_missing_sections(self):
+        self.assertEqual(section_positions("S: a\nP: d"), [0, None, None, 5])
+
+    def test_sections_are_a_setting(self):
+        metric = METRICS["note_sections"].with_settings(
+            {"sections": [["Motivo de consulta"], ["Plan", "Tratamiento"]]}
+        )
+        self.assertEqual(
+            self.soap("Motivo de consulta: tos\nPlan: reposo", metric), 1.0
+        )
+        self.assertEqual(self.soap("S: a\nO: b\nA: c\nP: d", metric), 0.0)
+
+    def test_malformed_sections_fail(self):
+        with self.assertRaises(ValueError):
+            METRICS["note_sections"].with_settings({"sections": [[]]})
 
     def test_identical_notes_have_full_rouge(self):
         note = Note("no chest pain")

@@ -44,6 +44,15 @@ uv run scribe-eval prepare primock57 --limit 3
 uv run scribe-eval run experiments/primock57_sample.toml
 ```
 
+TEME-v1 is the Spanish dataset: 90 consultations with TTS audio and no reference notes.
+Preparing it needs `ffmpeg`, and its experiments need a local judge for `grounding`,
+as described in [metrics](docs/metrics.md#link-and-correct).
+
+```bash
+uv run scribe-eval prepare teme
+uv run scribe-eval run experiments/teme_es.toml
+```
+
 Heavy metrics are optional extras: `uv sync --extra semantic` for BERTScore, BLEURT,
 and Clinical BERTScore (Torch), `--extra diarization` for DER and JER. See
 [metrics](docs/metrics.md#model-metrics).
@@ -57,6 +66,13 @@ Each run lands in `runs/`, with a `report.html`. To continue or rescore one:
 uv run scribe-eval resume runs/<run>
 uv run scribe-eval resume runs/<run> --retry-errors
 uv run scribe-eval score runs/<run>
+```
+
+To compare pipelines or workflows, compare their runs. The table puts coverage and
+failures first, and warns when runs scored different samples or metric versions:
+
+```bash
+uv run scribe-eval compare runs/<run-a> runs/<run-b>
 ```
 
 `experiments/primock57_full.toml` runs all 57 consultations. That is hours on CPU,

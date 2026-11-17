@@ -1,5 +1,10 @@
 """Who spoke when, scored with pyannote.metrics.
 
+Bredin, "pyannote.metrics: a toolkit for reproducible evaluation, diagnostic, and
+error analysis of speaker diarization systems", Interspeech 2017. JER comes from
+Ryant et al., "The Second DIHARD Diarization Challenge: Dataset, Task, and
+Baselines", Interspeech 2019.
+
 Needs the `diarization` extra. Both sides need times, so samples without them, like
 TEME-v1's, don't apply.
 """

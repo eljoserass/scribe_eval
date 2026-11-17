@@ -6,7 +6,13 @@ from typing import Annotated
 
 import typer
 
-from .application import prepare_dataset, resume_run, run_experiment, score_run
+from .application import (
+    compare_runs,
+    prepare_dataset,
+    resume_run,
+    run_experiment,
+    score_run,
+)
 from .terminal import TerminalView
 
 app = typer.Typer(
@@ -34,7 +40,7 @@ def _fail(error: Exception) -> typer.Exit:
 
 @app.command()
 def prepare(
-    name: Annotated[str, typer.Argument(help="Dataset: primock57 or smoke")],
+    name: Annotated[str, typer.Argument(help="Dataset: primock57, teme, or smoke")],
     *,
     source: Annotated[Path | None, typer.Option(help="Local raw data")] = None,
     sample_id: Annotated[
@@ -121,6 +127,20 @@ def score(
     view = TerminalView()
     view.results(results)
     print(f"Report: {Path(run_directory).resolve() / 'report.html'}")
+
+
+@app.command()
+def compare(
+    run_directories: Annotated[
+        list[Path], typer.Argument(help="Two or more scored runs")
+    ],
+) -> None:
+    """Show finished runs side by side, warning when they are not comparable."""
+    try:
+        comparison = compare_runs(run_directories)
+    except (ValueError, OSError) as error:
+        raise _fail(error) from error
+    TerminalView().comparison(comparison)
 
 
 def main() -> None:

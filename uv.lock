@@ -941,6 +941,15 @@ wheels = [
 ]
 
 [[package]]
+name = "more-itertools"
+version = "11.2.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/52/b8/c63995bebbb9ac9c059350e0fb8c82c2420c85aeca7d34e40aecf3df9281/more_itertools-11.2.1.tar.gz", hash = "sha256:cbf08fd0af284dc69718b9b76a8e6203df624d70209ea511e4219d350c856f63", size = 154133, upload-time = "2026-10-14T18:50:30.407Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5d/57/3c4b1c6f2e0cc29ba023802458ea3d2a996f87085559e4a5f2192d549532/more_itertools-11.2.1-py3-none-any.whl", hash = "sha256:35a7377edd1dd6608dcb2cdf534ded55ea32d49448875ad042cd3f879fb1ded0", size = 74405, upload-time = "2026-10-14T18:50:29.116Z" },
+]
+
+[[package]]
 name = "mpmath"
 version = "1.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2065,11 +2074,13 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "jiwer" },
+    { name = "more-itertools" },
     { name = "nltk" },
     { name = "num2words" },
     { name = "numpy" },
     { name = "psutil" },
     { name = "rapidfuzz" },
+    { name = "regex" },
     { name = "rich" },
     { name = "rouge-score" },
     { name = "sacrebleu" },
@@ -2104,6 +2115,7 @@ requires-dist = [
     { name = "bert-score", marker = "extra == 'semantic'", specifier = ">=0.3.13" },
     { name = "bleurt-pytorch", marker = "extra == 'semantic'", specifier = ">=0.0.1" },
     { name = "jiwer", specifier = ">=4,<5" },
+    { name = "more-itertools", specifier = ">=10,<12" },
     { name = "nltk", specifier = ">=3.9,<4" },
     { name = "num2words", specifier = ">=0.5,<1" },
     { name = "numpy", specifier = ">=2,<3" },
@@ -2111,6 +2123,7 @@ requires-dist = [
     { name = "psutil", specifier = ">=7,<8" },
     { name = "pyannote-metrics", marker = "extra == 'diarization'", specifier = ">=4,<5" },
     { name = "rapidfuzz", specifier = ">=3,<4" },
+    { name = "regex", specifier = ">=2024.4,<2027" },
     { name = "rich", specifier = ">=15,<16" },
     { name = "rouge-score", specifier = ">=0.1.2,<0.2" },
     { name = "sacrebleu", specifier = ">=2.5,<3" },

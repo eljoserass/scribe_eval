@@ -1,10 +1,14 @@
 """Check conversion from raw formats to the common one."""
 
 import json
+import shutil
+import subprocess
 import tempfile
 import unittest
 import wave
+import zipfile
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 
@@ -88,3 +92,103 @@ class TemeTests(unittest.TestCase):
         segment = teme.dialogue_transcript(dialogue).segments[0]
         self.assertEqual(segment.speaker, "Doctor")
         self.assertIsNone(segment.start)
+
+
+def write_teme_zip(path: Path, numbers: list[int]) -> None:
+    """Write an archive in TEME-v1's layout, with placeholder MP3 bytes."""
+    with zipfile.ZipFile(path, "w") as bundle:
+        for number in numbers:
+            dialogue = {
+                "scenario_id": f"consulta_{number}",
+                "title": "Consulta",
+                "context": "Resumen que no es una nota",
+                "turns": [
+                    {"speaker": "Doctor", "text": "¿Qué le pasa?"},
+                    {"speaker": "PacienteMujer", "text": "Me duele la cabeza."},
+                ],
+            }
+            name = f"dialogues/dialogue{number}_original.json"
+            bundle.writestr(name, json.dumps(dialogue))
+            bundle.writestr(f"audio_dialogues/dialogue{number}.modify.mp3", b"mp3")
+
+
+def fake_decode(data: bytes, output: Path) -> None:
+    """Stand in for ffmpeg with half a second of silence."""
+    write_wav(output, [0] * 8000)
+
+
+class TemeArchiveTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.archive = self.root / "teme.zip"
+        write_teme_zip(self.archive, [1, 2, 10])
+
+    def prepare(self, **selection) -> PreparedDataset:
+        """Convert the fake archive without ffmpeg."""
+        output = self.root / "teme"
+        with (
+            mock.patch.object(teme, "decode_mp3", fake_decode),
+            mock.patch.object(teme.shutil, "which", return_value="/usr/bin/ffmpeg"),
+        ):
+            teme.prepare(output, source=self.archive, **selection)
+        return PreparedDataset(output)
+
+    def test_converts_audio_and_script_without_a_note(self):
+        dataset = self.prepare()
+        sample = dataset.sample("dialogue2")
+        self.assertEqual(dataset.provides, {"audio", "diarized_transcript"})
+        self.assertEqual(dataset.language, "es")
+        self.assertEqual(
+            sample.artifact("diarized_transcript").segments[1].speaker, "PacienteMujer"
+        )
+        self.assertEqual(sample.metadata["audio_seconds"], 0.5)
+        self.assertEqual(sample.metadata["scenario_id"], "consulta_2")
+
+    def test_limit_follows_numeric_order(self):
+        dataset = self.prepare(limit=2)
+        self.assertEqual(dataset.splits["all"], ["dialogue1", "dialogue2"])
+
+    def test_ids_select_dialogues(self):
+        dataset = self.prepare(ids=["dialogue10"])
+        self.assertEqual(dataset.splits["all"], ["dialogue10"])
+
+    def test_unknown_id_is_an_error(self):
+        with self.assertRaisesRegex(ValueError, "dialogue99"):
+            self.prepare(ids=["dialogue99"])
+
+    def test_missing_ffmpeg_is_explained(self):
+        with mock.patch.object(teme.shutil, "which", return_value=None):
+            with self.assertRaisesRegex(FileNotFoundError, "ffmpeg"):
+                teme.prepare(self.root / "teme", source=self.archive)
+
+    @unittest.skipUnless(shutil.which("ffmpeg"), "needs ffmpeg")
+    def test_decode_writes_16_khz_mono_pcm(self):
+        mp3 = subprocess.run(
+            [
+                "ffmpeg",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=440:sample_rate=8000:duration=0.5",
+                "-f",
+                "mp3",
+                "pipe:1",
+            ],
+            capture_output=True,
+            check=True,
+        ).stdout
+        output = self.root / "audio.wav"
+        teme.decode_mp3(mp3, output)
+        with wave.open(str(output), "rb") as audio:
+            params = (audio.getnchannels(), audio.getsampwidth(), audio.getframerate())
+        self.assertEqual(params, (1, 2, 16000))
+
+    @unittest.skipUnless(shutil.which("ffmpeg"), "needs ffmpeg")
+    def test_undecodable_audio_is_an_error(self):
+        with self.assertRaisesRegex(ValueError, "could not decode"):
+            teme.decode_mp3(b"not audio", self.root / "audio.wav")

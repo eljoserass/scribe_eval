@@ -26,6 +26,7 @@ infer      sample → pipeline.run → predictions.jsonl
 score      prediction + sample → scores.jsonl
 aggregate  scores → results.json
 report     results + predictions → report.html
+compare    several results.json → a table, with comparability warnings
 ```
 
 ## Experiments
@@ -200,6 +201,7 @@ src/scribe_eval/
 ├── inference.py      # first phase
 ├── scoring.py        # second phase
 ├── aggregation.py    # scores → results
+├── comparison.py     # finished runs side by side
 ├── reporting.py      # results → report.html
 ├── judge.py          # LLM client with a disk cache
 ├── storage.py        # run layout, JSONL, predictions
@@ -218,7 +220,7 @@ src/scribe_eval/
 ├── datasets/
 │   ├── prepared.py   # common format and its loader
 │   ├── primock57.py  # converter
-│   └── teme.py       # converter; builds the smoke dataset
+│   └── teme.py       # converter; also builds the smoke dataset
 └── metrics/
     ├── transcription.py
     ├── diarization.py
@@ -228,19 +230,29 @@ src/scribe_eval/
     ├── models.py     # loading, devices, settings for model metrics
     ├── note_format.py
     ├── link_correct.py
+    ├── grounding.py  # note facts against the transcript
     ├── resources.py
+    ├── text.py       # normalization
+    ├── whisper_normalizers/  # Whisper's, verbatim, MIT
     └── assets/       # term lists
 ```
 
 ## Planned
 
-- **`compare`,** a table across runs, reading `results.json`.
 - **Repeats.** Generating the same input several times shows how much a note changes
   when nothing else does. Without that baseline, a perturbation's effect means little.
   It needs a varying seed and sampling; with a fixed seed and temperature 0, repeats
   add nothing.
-- **Perturbations.** An `Artifact -> Artifact` function with a seed, applied before
-  the pipeline. Each creates a `variant` compared against `clean`.
+- **Perturbations.** An `Artifact -> Artifact` function with a seed. A perturbed run is
+  its own run that names a finished clean run as its parent, so the clean benchmark
+  never waits for it and several variants can run in parallel. It may perturb the
+  dataset's input, or an artifact the parent produced: take the parent's transcript,
+  remove a drug, and run only the note step. Rows keep `variant`, and pairing by
+  sample ID across parent and child lets safety probes grade how each note handled
+  the change. See [metrics](metrics.md#planned-perturbations).
+- **Adding metrics to a run.** `scribe-eval score` already rescores saved predictions
+  with the metrics in the run's copy of `experiment.toml`, but it recomputes all of
+  them. A `--metrics` option would add some and score only what's missing.
 
 `variant` and `repeat` are already in every row, so none of this needs a migration.
 

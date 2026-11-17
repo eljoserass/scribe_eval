@@ -43,12 +43,16 @@ class SplitTests(unittest.TestCase):
 
 
 class MedicalWordTests(unittest.TestCase):
-    def test_terms_and_spelled_numbers_count(self):
+    def test_terms_and_digits_count(self):
         terms = frozenset({"chest pain", "paracetamol"})
         found = medical_words(
-            "take two paracetamol for chest pain and rest", terms, 2, "en"
+            "take 2 paracetamol for chest pain and rest", terms, 2, "en"
         )
-        self.assertEqual(found, {"two", "paracetamol", "chest", "pain"})
+        self.assertEqual(found, {"2", "paracetamol", "chest", "pain"})
+
+    def test_spelled_numbers_count_but_not_their_connectors(self):
+        found = medical_words("tomar treinta y uno días", frozenset(), 1, "es")
+        self.assertEqual(found, {"treinta", "uno"})
 
 
 class SettingsTests(unittest.TestCase):

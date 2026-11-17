@@ -1,4 +1,10 @@
-"""Transcription error rates against a reference transcript."""
+"""Transcription error rates against a reference transcript.
+
+WER and CER come from `jiwer`, after the normalization in `text.py`.
+`medical_term_wer` follows Behling, "MedWER: A Reproducible, Model-Free Evaluation
+Protocol for Medical Speech Recognition", arXiv:2609.05728 (2026).
+https://github.com/Nordis-Tech/medwer
+"""
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -19,7 +25,7 @@ class ErrorRate:
     name: str
     align: Callable
     group: str = "transcription"
-    version: int = 1
+    version: int = 2
     requires: Requires = Requires(("transcript",), ("transcript",))
 
     def score(self, prediction: Prediction, sample: Sample) -> Score | None:
@@ -109,7 +115,7 @@ class MedicalTermErrorRate:
 
     name: str = "medical_term_wer"
     group: str = "transcription"
-    version: int = 1
+    version: int = 2
     requires: Requires = Requires(("transcript",), ("transcript",))
 
     def score(self, prediction: Prediction, sample: Sample) -> Score | None:

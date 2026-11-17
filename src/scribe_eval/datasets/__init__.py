@@ -9,4 +9,5 @@ Converter = Callable[..., None]
 CONVERTERS: dict[str, Converter] = {
     "primock57": primock57.prepare,
     "smoke": teme.prepare_smoke,
+    "teme": teme.prepare,
 }
