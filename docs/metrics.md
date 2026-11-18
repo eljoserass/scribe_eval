@@ -8,7 +8,6 @@ metric or a whole group. Nothing here measures clinical safety yet.
 | Group | Metric | Predicted | Reference | Aggregates |
 | --- | --- | --- | --- | --- |
 | `transcription` | `wer`, `cer` | `transcript` | `transcript` | Global, sample mean |
-| `transcription` | `medical_term_wer` | `transcript` | `transcript` | Global |
 | `transcription` | `transcript_rouge_1`, `transcript_rouge_l` | `transcript` | `transcript` | Mean |
 | `transcription` | `transcript_bleu` | `transcript` | `transcript` | Corpus, mean |
 | `transcription_semantic` | `clinical_bertscore` | `transcript` | `transcript` | Global, sample mean |
@@ -104,14 +103,6 @@ their 0.33, so it isn't comparable across implementations.
   earlier ones left, so peaks mix consultation length with order. The report's RAM
   start and end columns show what stayed.
 
-## Medical terms
-
-`medical_term_wer` follows [MedWER](https://github.com/Nordis-Tech/medwer): keep only
-terms from a fixed list, then align. A missed phrase is one error. It uses MedWER's list
-with Whisper's normalization, not theirs, so numbers aren't comparable. English
-only; other languages are skipped. It's precise but misses most serious errors. See
-[evaluation notes](evaluation_notes.md).
-
 ## LINK and CORRECT
 
 `link` and `correct` replicate Wang et al.'s fact metrics, as in
@@ -202,8 +193,9 @@ can reach that; transcripts always would, hence the split below.
 medical part weighs only tokens of medical terms and numbers. The paper released no
 code, so three things differ:
 
-- Its 20K medical words come from Google's Knowledge Graph and aren't public. MedWER's
-  19K-term list stands in, so English only unless `terms` points to another list.
+- Its 20K medical words come from Google's Knowledge Graph and aren't public. The
+  19K-term list from [MedWER](https://github.com/Nordis-Tech/medwer), a preprint,
+  stands in, so English only unless `terms` points to another list.
 - It scored single sentences. Here each reference utterance is paired with the
   predicted words aligned to it, as for WER, and the sample weighs utterances by
   reference words.

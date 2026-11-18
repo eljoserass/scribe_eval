@@ -84,6 +84,8 @@ ACI-BENCH and ADS details come partly from summaries of their full text.
 
 Term errors are precise but miss most serious errors: lost negations like "No.", and
 terms outside the list. "Paracetamol" isn't on it.
+`medical_term_wer`, built on MedWER, was removed for this reason and because MedWER is
+not peer reviewed.
 
 ## Approach
 
