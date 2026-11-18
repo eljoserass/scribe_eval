@@ -21,7 +21,7 @@ from .resources import (
     Throughput,
     Tokens,
 )
-from .semantic import BertScore, Bleurt
+from .semantic import BertScore, Bleurt, NegBleurt
 from .transcription import (
     CHARACTER_ERROR_RATE,
     WORD_ERROR_RATE,
@@ -49,6 +49,7 @@ _ALL: tuple[Metric, ...] = (
     Levenshtein(),
     BertScore(),
     Bleurt(),
+    NegBleurt(),
     LinkCorrect("link"),
     LinkCorrect("correct"),
     Grounding(),

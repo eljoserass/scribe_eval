@@ -109,6 +109,7 @@ Runs before any model loads. What a pipeline produces comes from `produces()`.
 | Pipeline doesn't accept the input | Error |
 | Pipeline doesn't produce the artifact, like WER on audio-to-note | `n/a`, with the reason |
 | A transcript goes in and WER is requested | `n/a`, with the reason |
+| The metric's `languages` exclude the dataset's, like NegBLEURT on Spanish | `n/a`, with the reason |
 
 ## Isolation
 
@@ -226,7 +227,7 @@ src/scribe_eval/
     ├── transcription.py
     ├── diarization.py
     ├── overlap.py    # ROUGE, BLEU, METEOR, Levenshtein
-    ├── semantic.py   # BERTScore, BLEURT
+    ├── semantic.py   # BERTScore, BLEURT, NegBLEURT
     ├── clinical_bertscore.py
     ├── models.py     # loading, devices, settings for model metrics
     ├── note_format.py

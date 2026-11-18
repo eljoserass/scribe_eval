@@ -1,11 +1,14 @@
-"""Note similarity from neural models: BERTScore and BLEURT.
+"""Note similarity from neural models: BERTScore, BLEURT, and NegBLEURT.
 
 Zhang et al., "BERTScore: Evaluating Text Generation with BERT", ICLR 2020.
 https://arxiv.org/abs/1904.09675
 Sellam et al., "BLEURT: Learning Robust Metrics for Text Generation", ACL 2020.
 https://arxiv.org/abs/2004.04696
+Anschütz, Miguel Lozano, and Groh, "This is not correct! Negation-aware Evaluation
+of Language Generation Systems", INLG 2023.
+https://aclanthology.org/2023.inlg-main.12/
 
-Both need the `semantic` extra and download their weights on first use. Inputs longer
+All need the `semantic` extra and download their weights on first use. Inputs longer
 than the model's limit, 512 tokens for the defaults, are truncated; `truncated` in
 the details flags it.
 """
@@ -14,9 +17,13 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from importlib.metadata import version
 from statistics import fmean
+from typing import TYPE_CHECKING
 
 from ..types import Prediction, Requires, Sample, Score
 from .models import LoadedModels, apply_settings, require_semantic, resolve_device
+
+if TYPE_CHECKING:
+    from transformers import PreTrainedModel, PreTrainedTokenizerBase
 
 
 def _texts(prediction: Prediction, sample: Sample) -> tuple[str, str] | None:
@@ -33,6 +40,47 @@ def _mean_details(scores: Sequence[Score], keys: tuple[str, ...]) -> dict[str, f
         result[key] = fmean(score.details[key] for score in scores)
     result["truncated"] = sum(score.details["truncated"] for score in scores)
     return result
+
+
+def _regression_score(
+    model: "PreTrainedModel",
+    tokenizer: "PreTrainedTokenizerBase",
+    device: str,
+    *,
+    reference: str,
+    candidate: str,
+    max_length: int,
+) -> tuple[float, bool]:
+    """Score one pair with a BLEURT-style model: BERT plus a regression head.
+
+    The pair is one input, reference first, as in BLEURT. Past `max_length` tokens,
+    the longer text loses tokens first, as BLEURT's own encoder does.
+
+    Args:
+        model: Sequence classifier with a single output, in evaluation mode.
+        tokenizer: The checkpoint's tokenizer.
+        device: Where `model` is.
+        reference: The reference note.
+        candidate: The generated note.
+        max_length: Token limit for the pair, special tokens included.
+
+    Returns:
+        The model's output, and whether the pair was truncated.
+    """
+    import torch
+
+    inputs = tokenizer(
+        [reference],
+        [candidate],
+        padding="longest",
+        truncation=True,
+        max_length=max_length,
+        return_tensors="pt",
+    ).to(device)
+    with torch.inference_mode():
+        value = float(model(**inputs).logits.flatten()[0])
+    length = len(tokenizer(reference, candidate)["input_ids"])
+    return value, length > max_length
 
 
 @dataclass(frozen=True)
@@ -184,25 +232,100 @@ class Bleurt:
 
     def score(self, prediction: Prediction, sample: Sample) -> Score | None:
         """Score one note against its reference."""
-        import torch
-
         texts = _texts(prediction, sample)
         if texts is None:
             return None
         candidate, reference = texts
         model, tokenizer, device = self._model()
-        inputs = tokenizer(
-            [reference],
-            [candidate],
-            padding="longest",
-            truncation=True,
+        value, truncated = _regression_score(
+            model,
+            tokenizer,
+            device,
+            reference=reference,
+            candidate=candidate,
             max_length=self.max_length,
-            return_tensors="pt",
-        ).to(device)
-        with torch.inference_mode():
-            value = float(model(**inputs).logits.flatten()[0])
-        length = len(tokenizer(reference, candidate)["input_ids"])
-        return Score(self.name, value, {"truncated": float(length > self.max_length)})
+        )
+        return Score(self.name, value, {"truncated": float(truncated)})
+
+    def aggregate(self, scores: Sequence[Score]) -> dict[str, float]:
+        """Average the scores."""
+        return _mean_details(scores, ())
+
+
+@dataclass(frozen=True)
+class NegBleurt:
+    """BLEURT fine-tuned to score negated statements low. English only.
+
+    Anschütz, Miguel Lozano, and Groh, INLG 2023. They fine-tuned Google's
+    BLEURT-tiny on their CANNOT sentence pairs, labeled 0 when negated and 1 when
+    paraphrased, mixed with WMT ratings, and published it as a plain `transformers`
+    BERT classifier. Its output is unbounded but mostly falls between 0 and 1.
+
+    The paper scored single sentences. Here a note and its reference are one pair,
+    truncated past `max_length` tokens. Datasets in other languages don't apply.
+    """
+
+    name: str = "negbleurt"
+    group: str = "note_semantic"
+    version: int = 1
+    requires: Requires = Requires(("note",), ("note",))
+    languages: tuple[str, ...] = ("en",)
+
+    # Settings, from [metric_settings.negbleurt].
+    checkpoint: str = "tum-nlp/NegBLEURT"
+    device: str = "auto"
+    # The checkpoint's tokenizer sets no limit; BLEURT-tiny was trained with 512.
+    max_length: int = 512
+
+    _models: LoadedModels = field(
+        init=False, default_factory=LoadedModels, compare=False, repr=False
+    )
+
+    def with_settings(self, settings: Mapping[str, object]) -> "NegBleurt":
+        """Copy with settings from the experiment."""
+        return apply_settings(self, settings, ("checkpoint", "device", "max_length"))
+
+    def describe(self, language: str) -> dict[str, object]:
+        """Checkpoint and package version."""
+        require_semantic("transformers", self.name)
+        return {
+            "checkpoint": self.checkpoint,
+            "max_length": self.max_length,
+            "transformers": version("transformers"),
+        }
+
+    def _model(self):
+        """Load the checkpoint once; downloads it on first use."""
+
+        def load():
+            """Build model and tokenizer on the chosen device."""
+            from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
+            device = resolve_device(self.device)
+            model = AutoModelForSequenceClassification.from_pretrained(self.checkpoint)
+            tokenizer = AutoTokenizer.from_pretrained(self.checkpoint)
+            return model.to(device).eval(), tokenizer, device
+
+        return self._models.get(self.checkpoint, load)
+
+    def score(self, prediction: Prediction, sample: Sample) -> Score | None:
+        """Score one note against its reference, or return None outside English."""
+        if sample.language not in self.languages:
+            return None
+        texts = _texts(prediction, sample)
+        if texts is None:
+            return None
+        candidate, reference = texts
+        model, tokenizer, device = self._model()
+        value, truncated = _regression_score(
+            model,
+            tokenizer,
+            device,
+            reference=reference,
+            candidate=candidate,
+            max_length=self.max_length,
+        )
+        return Score(self.name, value, {"truncated": float(truncated)})
 
     def aggregate(self, scores: Sequence[Score]) -> dict[str, float]:
         """Average the scores."""
