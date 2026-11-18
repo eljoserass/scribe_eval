@@ -49,6 +49,8 @@ Themes without a release yet. Each has issues labelled `backlog`.
 - **Own data:** a collection protocol and splits, and Spanish clinical references.
 - **Robustness:** perturbations as independent runs.
 - **Infrastructure:** experiment tracking.
+- **Documentation:** reorganize `docs/` by [Diátaxis](https://diataxis.fr/): tutorials,
+  how-to guides, reference, and explanation. Today the pages mix all four.
 - **Metric organization.** Model-based metrics keep growing: BERTScore, BLEURT,
   NegBLEURT, Clinical BERTScore, and the candidates below. Revisit how they are grouped,
   configured, and how their models are loaded and recorded, before adding many more.
