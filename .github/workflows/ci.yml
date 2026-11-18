@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+
+      # The dev group adds Scribnic from a sibling checkout that CI doesn't have, so
+      # install only the checks group. --frozen installs from uv.lock without
+      # re-resolving, which would need that checkout.
+      - name: Install
+        run: uv sync --frozen --no-dev --group checks
+
+      - name: Lint
+        run: uv run --no-sync ruff check src tests
+
+      - name: Format
+        run: uv run --no-sync ruff format --check src tests
+
+      - name: Test
+        run: uv run --no-sync python -m unittest discover -t . -s tests

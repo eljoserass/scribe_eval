@@ -33,7 +33,9 @@ Clinician workflow and IT integration are out of scope for now.
 ## Usage
 
 Needs [uv](https://docs.astral.sh/uv/). The Scribnic pipeline also needs a Scribnic
-checkout next to this repository.
+checkout next to this repository; `uv sync` installs it through the `dev` group.
+Without that checkout, `uv sync --frozen --no-dev --group checks` installs the
+harness and its checks, and the Scribnic tests skip. CI does the same.
 
 ```bash
 uv sync
