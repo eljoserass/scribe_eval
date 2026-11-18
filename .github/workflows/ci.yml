@@ -15,18 +15,22 @@ permissions:
 
 jobs:
   checks:
-    name: Checks (${{ matrix.os }})
+    name: Checks (${{ matrix.os }}, Python ${{ matrix.python }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
+        # The minimum in requires-python and the newest release.
+        python: ["3.12", "3.15"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: ${{ matrix.python }}
 
       # The dev group adds Scribnic from a sibling checkout that CI doesn't have, so
       # install only the checks group. --frozen installs from uv.lock without
