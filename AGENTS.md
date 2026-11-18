@@ -210,8 +210,9 @@ def real_time_factor(
 ## Branches and pull requests
 
 - Never commit to `main`. Work on a branch, push it, and open a pull request.
-- Prefix the branch with the kind of change: `feat/`, `fix/`, `refactor/`, or
-  `docs/`. Commit messages use the same prefix, as in `docs: add MEDIQA-Chat`.
+- Prefix the branch with the kind of change: `feat/`, `fix/`, `refactor/`, `docs/`,
+  `ci/` for workflows, or `chore/` for project files and tooling. Commit messages use
+  the same prefix, as in `docs: add MEDIQA-Chat`.
 - Documentation that stands alone, such as notes, plans, dataset or metric research,
   and roadmaps, goes on a `docs/` branch, apart from code. The plans change often,
   and separate branches keep each review small.
