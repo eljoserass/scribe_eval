@@ -101,6 +101,7 @@ so it is meant for a server: prepare the data there, or copy `data/` and set
 - [Datasets](docs/datasets.md)
 - [Metrics](docs/metrics.md)
 - [Evaluation notes](docs/evaluation_notes.md)
+- [Roadmap](docs/roadmap.md)
 
 ## References
 
