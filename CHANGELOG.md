@@ -14,10 +14,10 @@ tagged yet.
   inference. `--no-score` saves predictions to score later.
 - `Pipeline` interface and telemetry contract, so the harness knows no particular
   scribe. Scribnic is the first implementation, behind the `scribnic` extra.
+- Dataset notes, including MEDIQA-Chat 2023's official scorer for ACI-BENCH.
 - Datasets: Smoke, PriMock57 (English), and TEME-v1 (Spanish, TTS audio), converted
   to a common prepared format.
-- Transcription metrics: WER and CER with Whisper's normalizers, a medical term WER
-  from MedWER's term list, ROUGE, and BLEU.
+- Transcription metrics: WER and CER with Whisper's normalizers, ROUGE, and BLEU.
 - Diarization metrics: DER and JER, behind the `diarization` extra.
 - Note metrics: length, readability, compression, ROUGE, BLEU, METEOR, and
   Levenshtein against reference notes.
