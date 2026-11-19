@@ -41,7 +41,6 @@ import jiwer
 from ..types import Prediction, Requires, Sample, Score, find_artifact
 from .models import LoadedModels, apply_settings, require_semantic, resolve_device
 from .text import normalize_text
-from .transcription import keep_terms
 
 
 def split_by_reference(
@@ -83,7 +82,7 @@ def split_by_reference(
                 )
     return [
         (text, " ".join(span))
-        for text, span in zip(reference_segments, spans)
+        for text, span in zip(reference_segments, spans, strict=True)
         if text.split()
     ]
 
@@ -109,6 +108,23 @@ def _is_number(word: str, numbers: frozenset[str]) -> bool:
 
 
 @lru_cache(maxsize=4)
+def keep_terms(text: str, terms: frozenset[str], longest: int) -> list[str]:
+    """Keep only medical terms, longest match first, each as one token."""
+    words = text.split()
+    kept = []
+    position = 0
+    while position < len(words):
+        for size in range(min(longest, len(words) - position), 0, -1):
+            candidate = " ".join(words[position : position + size])
+            if candidate in terms:
+                kept.append(candidate.replace(" ", "_"))
+                position += size
+                break
+        else:
+            position += 1
+    return kept
+
+
 def _load_terms(path: str, language: str) -> tuple[frozenset[str], int]:
     """Read a term list in normalized form, with the longest term's length."""
     lines = Path(path).read_text(encoding="utf-8").splitlines()
@@ -272,18 +288,21 @@ class ClinicalBertScore:
         weighted = self._f1(encoder, pairs, any_medical) if any_medical else overall
 
         values = []
-        for all_tokens, medical_tokens, found in zip(overall, weighted, medical):
+        for all_tokens, medical_tokens, found in zip(
+            overall, weighted, medical, strict=True
+        ):
             weight = self.medical_weight if found else 0.0
             values.append(weight * medical_tokens + (1 - weight) * all_tokens)
         sizes = [len(reference.split()) for reference, _ in pairs]
         total = sum(sizes)
+        unweighted = sum(v * s for v, s in zip(overall, sizes, strict=True)) / total
         details = {
             "reference_words": float(total),
             "utterances": float(len(pairs)),
             "medical_utterances": float(sum(bool(found) for found in medical)),
-            "bertscore": sum(v * s for v, s in zip(overall, sizes)) / total,
+            "bertscore": unweighted,
         }
-        value = sum(v * s for v, s in zip(values, sizes)) / total
+        value = sum(v * s for v, s in zip(values, sizes, strict=True)) / total
         return Score(self.name, value, details)
 
     def aggregate(self, scores: Sequence[Score]) -> dict[str, float]:

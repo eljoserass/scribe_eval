@@ -41,7 +41,8 @@ def plan_dataset(
         metrics: Metrics configured for the experiment; registry defaults otherwise.
 
     Returns:
-        The plan. A metric the pipeline cannot satisfy is listed as not applicable.
+        The plan. A metric the pipeline cannot satisfy, or one that declares
+        `languages` without the dataset's, is listed as not applicable.
 
     Raises:
         ValueError: If the dataset lacks the input or a reference a metric needs,
@@ -70,6 +71,11 @@ def plan_dataset(
         if missing:
             not_applicable[metric.name] = (
                 f"the pipeline does not produce {', '.join(missing)} from {entry.input}"
+            )
+        elif hasattr(metric, "languages") and dataset.language not in metric.languages:
+            not_applicable[metric.name] = (
+                f"the metric supports {', '.join(metric.languages)}, "
+                f"not {dataset.language}"
             )
         else:
             planned.append(metric)

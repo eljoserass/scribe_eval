@@ -33,7 +33,9 @@ Clinician workflow and IT integration are out of scope for now.
 ## Usage
 
 Needs [uv](https://docs.astral.sh/uv/). The Scribnic pipeline also needs a Scribnic
-checkout next to this repository.
+checkout next to this repository; `uv sync` installs it through the `dev` group.
+Without that checkout, `uv sync --frozen --no-dev --group checks` installs the
+harness and its checks, and the Scribnic tests skip. CI does the same.
 
 ```bash
 uv sync
@@ -54,7 +56,7 @@ uv run scribe-eval run experiments/teme_es.toml
 ```
 
 Heavy metrics are optional extras: `uv sync --extra semantic` for BERTScore, BLEURT,
-and Clinical BERTScore (Torch), `--extra diarization` for DER and JER. See
+NegBLEURT, and Clinical BERTScore (Torch), `--extra diarization` for DER and JER. See
 [metrics](docs/metrics.md#model-metrics).
 
 The PriMock57 experiments use an English Scribnic workflow in `workflows/`: Whisper
@@ -102,6 +104,18 @@ so it is meant for a server: prepare the data there, or copy `data/` and set
 - [Metrics](docs/metrics.md)
 - [Evaluation notes](docs/evaluation_notes.md)
 - [Roadmap](docs/roadmap.md)
+- [Contributing](CONTRIBUTING.md), [Security](SECURITY.md), and
+  [Changelog](CHANGELOG.md)
+
+## License
+
+MIT; see [LICENSE](LICENSE). Vendored files keep their own notices:
+Whisper's normalizers in
+[`metrics/whisper_normalizers`](src/scribe_eval/metrics/whisper_normalizers/LICENSE)
+(MIT, OpenAI), and MedWER's medical term list, described in
+[`metrics/assets/NOTICE`](src/scribe_eval/metrics/assets/NOTICE). The LINK and
+CORRECT prompts are fetched at first use and not redistributed, since their
+repository has no license.
 
 ## References
 
