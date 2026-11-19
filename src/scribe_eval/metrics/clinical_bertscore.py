@@ -82,7 +82,7 @@ def split_by_reference(
                 )
     return [
         (text, " ".join(span))
-        for text, span in zip(reference_segments, spans)
+        for text, span in zip(reference_segments, spans, strict=True)
         if text.split()
     ]
 
@@ -288,18 +288,21 @@ class ClinicalBertScore:
         weighted = self._f1(encoder, pairs, any_medical) if any_medical else overall
 
         values = []
-        for all_tokens, medical_tokens, found in zip(overall, weighted, medical):
+        for all_tokens, medical_tokens, found in zip(
+            overall, weighted, medical, strict=True
+        ):
             weight = self.medical_weight if found else 0.0
             values.append(weight * medical_tokens + (1 - weight) * all_tokens)
         sizes = [len(reference.split()) for reference, _ in pairs]
         total = sum(sizes)
+        unweighted = sum(v * s for v, s in zip(overall, sizes, strict=True)) / total
         details = {
             "reference_words": float(total),
             "utterances": float(len(pairs)),
             "medical_utterances": float(sum(bool(found) for found in medical)),
-            "bertscore": sum(v * s for v, s in zip(overall, sizes)) / total,
+            "bertscore": unweighted,
         }
-        value = sum(v * s for v, s in zip(values, sizes)) / total
+        value = sum(v * s for v, s in zip(values, sizes, strict=True)) / total
         return Score(self.name, value, details)
 
     def aggregate(self, scores: Sequence[Score]) -> dict[str, float]:

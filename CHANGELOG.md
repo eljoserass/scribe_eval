@@ -27,6 +27,8 @@ tagged yet.
   against the reference transcript. The judges are not validated.
 - Resource metrics: time, real-time factor per phase, memory across the run, CPU,
   and token throughput, with hardware recorded per run.
+- CI on Linux and macOS with Python 3.12 and 3.15, and Dependabot for GitHub
+  Actions.
 - HTML report per run, `scribe-eval compare` for finished runs, and
   `scribe-eval runs` to list running, failed, and stale runs.
 
