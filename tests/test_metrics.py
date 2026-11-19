@@ -5,7 +5,6 @@ import unittest
 from scribe_eval.artifacts import DiarizedTranscript, Note, Segment, Transcript
 from scribe_eval.metrics import METRICS, resolve_metrics
 from scribe_eval.metrics.text import normalize_text
-from scribe_eval.metrics.transcription import keep_terms
 from scribe_eval.telemetry import ModelUsage, Phase, ProcessUsage, SampleTelemetry
 from scribe_eval.types import Prediction, Sample, Score
 
@@ -149,47 +148,12 @@ class TelemetryMetricTests(unittest.TestCase):
 class RegistryTests(unittest.TestCase):
     def test_groups_expand_without_duplicates(self):
         names = [metric.name for metric in resolve_metrics(["wer", "transcription"])]
-        self.assertEqual(names[:3], ["wer", "cer", "medical_term_wer"])
+        self.assertEqual(names[:2], ["wer", "cer"])
         self.assertEqual(names.count("wer"), 1)
 
     def test_unknown_names_fail(self):
         with self.assertRaises(ValueError):
             resolve_metrics(["nope"])
-
-
-class MedicalTermTests(unittest.TestCase):
-    def score(self, reference: str, predicted: str, language: str = "en"):
-        """Compare two transcripts."""
-        return METRICS["medical_term_wer"].score(
-            prediction(transcript=Transcript.from_text(predicted)),
-            Sample(
-                "s",
-                "all",
-                language,
-                {"transcript": Transcript.from_text(reference)},
-            ),
-        )
-
-    def test_ordinary_words_do_not_count(self):
-        score = self.score("you have asthma today", "we have asthma now")
-        self.assertEqual(score.value, 0.0)
-
-    def test_a_wrong_term_counts(self):
-        score = self.score("you have asthma", "you have as ma")
-        self.assertEqual(score.details["errors"], 1)
-
-    def test_phrases_are_one_term(self):
-        terms = frozenset({"insulin glargine", "insulin"})
-        self.assertEqual(
-            keep_terms("take insulin glargine daily", terms, 2), ["insulin_glargine"]
-        )
-
-    def test_an_invented_term_counts_without_a_reference_term(self):
-        score = self.score("all is well today", "you have asthma")
-        self.assertEqual(score.details["errors"], 1)
-
-    def test_languages_without_a_list_do_not_apply(self):
-        self.assertIsNone(self.score("tiene asma", "tiene asma", "es"))
 
 
 class LevenshteinTests(unittest.TestCase):

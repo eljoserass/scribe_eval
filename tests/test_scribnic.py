@@ -1,10 +1,20 @@
-"""Check the Scribnic implementation, the only tests that need Scribnic."""
+"""Check the Scribnic implementation, the only tests that need Scribnic.
+
+Scribnic is optional and installs from a sibling checkout, so the whole module skips
+when it is missing. A broken installation still fails.
+"""
 
 import tempfile
 import unittest
 from pathlib import Path
 
-import scribnic
+try:
+    import scribnic
+except ModuleNotFoundError as error:
+    if error.name != "scribnic":
+        raise
+    raise unittest.SkipTest("Scribnic is not installed") from error
+
 from scribnic import RunResult
 from scribnic.artifacts import StepOutput, StepRecord
 from scribnic.config import ModelConfig, RuntimeConfig, StepConfig, WorkflowConfig

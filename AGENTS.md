@@ -199,3 +199,23 @@ def real_time_factor(
 - Keep live model checks and dataset downloads opt-in. Ordinary unit tests must not
   download weights or data, require a GPU, or contact inference services.
 - Run checks appropriate to the change. Documentation-only edits need no model runs.
+
+## Documentation
+
+- A change is finished when its documentation is. Code carries docstrings, and a
+  change that alters behavior updates the README or `docs/` page that describes it.
+- A new dataset, metric, or pipeline gets its entry in `docs/datasets.md`,
+  `docs/metrics.md`, or `docs/pipelines.md`, with its source and what was verified.
+
+## Branches and pull requests
+
+- Never commit to `main`. Work on a branch, push it, and open a pull request.
+- Prefix the branch with the kind of change: `feat/`, `fix/`, `refactor/`, `docs/`,
+  `ci/` for workflows, or `chore/` for project files and tooling. Commit messages use
+  the same prefix, as in `docs: add MEDIQA-Chat`.
+- Documentation that stands alone, such as notes, plans, dataset or metric research,
+  and roadmaps, goes on a `docs/` branch, apart from code. The plans change often,
+  and separate branches keep each review small.
+- Documentation tied to code goes with that code. The commit and pull request say
+  what the change does and why; keep them granular enough that this is enough.
+- Keep branches to one topic. Several small related changes can share a branch.
