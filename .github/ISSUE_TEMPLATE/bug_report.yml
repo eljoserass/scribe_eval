@@ -1,0 +1,38 @@
+name: Bug report
+description: Something in the harness behaves wrongly.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        **Do not paste clinical or patient data**: no transcripts, notes, audio, or
+        identifiers from real consultations. Use the smoke dataset or a synthetic
+        example to show the problem.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: Commands, the experiment TOML, and the dataset.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Error output
+      description: Traceback or the failure row from the run, with data removed.
+      render: text
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Commit, OS, Python version, extras, and pipeline.
+    validations:
+      required: true
