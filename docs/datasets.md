@@ -115,6 +115,25 @@ Full conversations and notes with MEDIQA splits: train 67, valid 20, three tests
 40. Notes also come by section. No audio in the repository. Some subsets keep swapped
 speaker tags on purpose, so speakers aren't a perfect reference.
 
+### MEDIQA-Chat 2023
+
+The shared task behind ACI-BENCH's published scores. Task A generated note sections
+from MTS-Dialog; Task B, full notes from ACI-BENCH test1. Its
+[repository](https://github.com/abachaa/MEDIQA-Chat-2023) has no data, only the
+official scorer, `scripts/evaluate_summarization.py`. Read at commit `1e90724`:
+
+- ROUGE-1, 2, L, and Lsum, through Hugging Face `evaluate`.
+- BERTScore with `microsoft/deberta-xlarge-mnli`. Ours defaults to `roberta-large`.
+- BLEURT-20.
+- Scores on the full note and on four divisions found by `scripts/sectiontagger.py`:
+  subjective, objective exam, objective results, and assessment and plan. Each cohort
+  is averaged on its own.
+
+Matching published numbers needs the DeBERTa model in `bertscore`, ROUGE-Lsum, and
+scores per division. The repository has no license, so the section tagger would be
+downloaded at a pinned commit, as LINK and CORRECT do with ADS_evaluation. Tracked in
+issue #10.
+
 ## MTS-Dialog
 
 Train 1,201, validation 100, two tests of 200. Use the original repository; the

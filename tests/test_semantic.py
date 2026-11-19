@@ -11,6 +11,7 @@ from scribe_eval.datasets.prepared import PreparedDataset
 from scribe_eval.metrics import METRICS, configure_metrics
 from scribe_eval.metrics.clinical_bertscore import (
     ClinicalBertScore,
+    keep_terms,
     medical_words,
     split_by_reference,
 )
@@ -43,6 +44,12 @@ class SplitTests(unittest.TestCase):
 
 
 class MedicalWordTests(unittest.TestCase):
+    def test_phrases_are_one_term(self):
+        terms = frozenset({"insulin glargine", "insulin"})
+        self.assertEqual(
+            keep_terms("take insulin glargine daily", terms, 2), ["insulin_glargine"]
+        )
+
     def test_terms_and_digits_count(self):
         terms = frozenset({"chest pain", "paracetamol"})
         found = medical_words(

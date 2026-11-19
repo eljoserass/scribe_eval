@@ -103,6 +103,18 @@ so it is meant for a server: prepare the data there, or copy `data/` and set
 - [Datasets](docs/datasets.md)
 - [Metrics](docs/metrics.md)
 - [Evaluation notes](docs/evaluation_notes.md)
+- [Contributing](CONTRIBUTING.md), [Security](SECURITY.md), and
+  [Changelog](CHANGELOG.md)
+
+## License
+
+MIT; see [LICENSE](LICENSE). Vendored files keep their own notices:
+Whisper's normalizers in
+[`metrics/whisper_normalizers`](src/scribe_eval/metrics/whisper_normalizers/LICENSE)
+(MIT, OpenAI), and MedWER's medical term list, described in
+[`metrics/assets/NOTICE`](src/scribe_eval/metrics/assets/NOTICE). The LINK and
+CORRECT prompts are fetched at first use and not redistributed, since their
+repository has no license.
 
 ## References
 
