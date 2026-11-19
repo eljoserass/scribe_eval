@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use scribe_eval, please cite it as below."
+title: "scribe_eval: an evaluation harness for clinical scribes"
+type: software
+authors:
+  - name: "Scribnic"
+license: MIT
+repository-code: "https://github.com/eljoserass/scribe_eval"
+abstract: >-
+  Runs a clinical scribe over datasets, scores its transcripts and notes, and
+  keeps every run resumable. Any scribe can plug in through one interface.
+keywords:
+  - clinical scribe
+  - evaluation
+  - speech recognition
+  - clinical notes
