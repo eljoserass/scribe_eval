@@ -56,7 +56,7 @@ uv run scribe-eval run experiments/teme_es.toml
 ```
 
 Heavy metrics are optional extras: `uv sync --extra semantic` for BERTScore, BLEURT,
-and Clinical BERTScore (Torch), `--extra diarization` for DER and JER. See
+NegBLEURT, and Clinical BERTScore (Torch), `--extra diarization` for DER and JER. See
 [metrics](docs/metrics.md#model-metrics).
 
 The PriMock57 experiments use an English Scribnic workflow in `workflows/`: Whisper

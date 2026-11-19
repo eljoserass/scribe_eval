@@ -21,8 +21,9 @@ tagged yet.
 - Diarization metrics: DER and JER, behind the `diarization` extra.
 - Note metrics: length, readability, compression, ROUGE, BLEU, METEOR, and
   Levenshtein against reference notes.
-- Model metrics: BERTScore, BLEURT, and Clinical BERTScore, behind the `semantic`
-  extra.
+- Model metrics: BERTScore, BLEURT, NegBLEURT, and Clinical BERTScore, behind the
+  `semantic` extra.
+- Metrics can declare the languages they support; others show as n/a with a reason.
 - Judge metrics: LINK and CORRECT replicated from ADS_evaluation, and `grounding`
   against the reference transcript. The judges are not validated.
 - Resource metrics: time, real-time factor per phase, memory across the run, CPU,
