@@ -1,11 +1,12 @@
 # Roadmap
 
-Draft. Each release is a GitHub milestone, and the milestone's issues are the source of
-truth for what goes in. This page says what each release is for and lists candidates
-not yet scheduled. Versions stay at 0.x while interfaces move; `CHANGELOG.md` records
-what shipped.
+Draft. Each goal below is a GitHub milestone named after it, and the milestone's
+issues are the source of truth for what goes in. The version number is chosen when a
+milestone closes and its release is tagged, usually the next minor version while the
+project is at 0.x. Fixes between goals ship as patch releases without a milestone.
+`CHANGELOG.md` records what shipped.
 
-## 0.1.0: Scribnic runs PriMock57
+## Scribnic runs PriMock57
 
 A scribe that can't get through a dataset can't be evaluated, so the first release is
 one complete run.
@@ -18,7 +19,7 @@ one complete run.
   platforms.
 - NegBLEURT. `medical_term_wer` removed.
 
-## 0.2.0: other scribes, and metrics with medical knowledge
+## Other scribes and medical metrics
 
 Pipelines come first: the harness claims to be scribe-agnostic, and a second and third
 scribe test that claim.
@@ -39,7 +40,10 @@ Themes without a release yet. Each has issues labelled `backlog`.
 
 - **Judges and their validation:** the ADS judge, judge evaluation against PriMock57's
   human data, OmissionBench omissions, Latif et al.'s fact protocol, facts as a
-  dataset reference.
+  dataset reference. Fact metrics report Ben Abacha et al.'s factual precision and
+  recall, hallucination rate, and omission rate, so they compare with that paper.
+- **Template adherence:** section checks without a model, then a judge over the
+  template's requirements.
 - **Errors weighted by clinical severity.** Mistaking paracetamol for omeprazole
   matters more than a cousin for a brother. Overlap and embedding metrics weigh both
   alike; clinical BERTScore and MedBERTScore weigh every medical term alike. The
@@ -69,7 +73,7 @@ Not scheduled. "Have" is what the harness computes today.
 | SapBERT score, CUI F-score | Nothing | UMLS concept embeddings and CUI overlap. SapBERT score was the only one of ten metrics with a significant correlation, still weak (Pearson 0.17) | Croxford et al., AMIA 2024 |
 | QuestEval | Nothing | Reference-free, question-answering consistency | Scialom et al. 2021; used by CliniKnote |
 | NegBLEURT by sentence | NegBLEURT on whole notes | Pairs of matched sentences, where the paper's scale holds | Anschütz et al., INLG 2023 |
-| Metric validation | Nothing | Correlate metrics with MTS-Dialog's correlation-study annotations and PriMock57's human evaluation | Ben Abacha et al. 2023; Moramarco et al. 2022 |
+| Metric validation | Nothing | Correlate metrics and judges with MTS-Dialog's correlation-study annotations, which give factual precision and recall, hallucination, and omission per note, and with PriMock57's human evaluation | Ben Abacha et al. 2023; Moramarco et al. 2022 |
 | Clinical BERTScore validation | Clinical BERTScore | Agreement with the paper's clinician preferences | Shor et al. 2023 |
 
 CliniKnote's contribution is a way to generate notes, keywords first, then K-SOAP. That
