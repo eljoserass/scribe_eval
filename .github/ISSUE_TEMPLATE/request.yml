@@ -1,0 +1,29 @@
+name: Request
+description: Propose a feature, metric, dataset, or pipeline.
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options:
+        - Feature
+        - Metric
+        - Dataset
+        - Pipeline
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What it does and what question it answers.
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: Source and licence
+      description: >-
+        For a metric or dataset: the paper or repository, the licence, the language,
+        and whether its published numbers have been reproduced.

@@ -1,0 +1,12 @@
+version: 2
+updates:
+  # Python dependencies are not listed: uv.lock includes Scribnic from a sibling
+  # checkout, so Dependabot could not re-lock. Update them with `uv lock --upgrade`.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns:
+          - "*"

@@ -21,17 +21,12 @@ from .resources import (
     Throughput,
     Tokens,
 )
-from .semantic import BertScore, Bleurt
-from .transcription import (
-    CHARACTER_ERROR_RATE,
-    WORD_ERROR_RATE,
-    MedicalTermErrorRate,
-)
+from .semantic import BertScore, Bleurt, NegBleurt
+from .transcription import CHARACTER_ERROR_RATE, WORD_ERROR_RATE
 
 _ALL: tuple[Metric, ...] = (
     WORD_ERROR_RATE,
     CHARACTER_ERROR_RATE,
-    MedicalTermErrorRate(),
     ClinicalBertScore(),
     Rouge("transcript_rouge_1", "rouge1", "transcript", "transcription"),
     Rouge("transcript_rouge_l", "rougeL", "transcript", "transcription"),
@@ -49,6 +44,7 @@ _ALL: tuple[Metric, ...] = (
     Levenshtein(),
     BertScore(),
     Bleurt(),
+    NegBleurt(),
     LinkCorrect("link"),
     LinkCorrect("correct"),
     Grounding(),

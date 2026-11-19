@@ -8,7 +8,6 @@ metric or a whole group. Nothing here measures clinical safety yet.
 | Group | Metric | Predicted | Reference | Aggregates |
 | --- | --- | --- | --- | --- |
 | `transcription` | `wer`, `cer` | `transcript` | `transcript` | Global, sample mean |
-| `transcription` | `medical_term_wer` | `transcript` | `transcript` | Global |
 | `transcription` | `transcript_rouge_1`, `transcript_rouge_l` | `transcript` | `transcript` | Mean |
 | `transcription` | `transcript_bleu` | `transcript` | `transcript` | Corpus, mean |
 | `transcription_semantic` | `clinical_bertscore` | `transcript` | `transcript` | Global, sample mean |
@@ -23,6 +22,7 @@ metric or a whole group. Nothing here measures clinical safety yet.
 | `note_reference` | `levenshtein` | `note` | `note` | Mean, per character |
 | `note_semantic` | `bertscore` | `note` | `note` | Mean, with precision and recall |
 | `note_semantic` | `bleurt` | `note` | `note` | Mean |
+| `note_semantic` | `negbleurt` | `note` | `note` | Mean |
 | `link_correct` | `link`, `correct` | `note` | `note` | Mean |
 | `note_grounding` | `grounding` | `note` | `transcript` | Mean, pooled |
 | `resources` | `elapsed_seconds` | — | — | Mean, p95 |
@@ -104,14 +104,6 @@ their 0.33, so it isn't comparable across implementations.
   earlier ones left, so peaks mix consultation length with order. The report's RAM
   start and end columns show what stayed.
 
-## Medical terms
-
-`medical_term_wer` follows [MedWER](https://github.com/Nordis-Tech/medwer): keep only
-terms from a fixed list, then align. A missed phrase is one error. It uses MedWER's list
-with Whisper's normalization, not theirs, so numbers aren't comparable. English
-only; other languages are skipped. It's precise but misses most serious errors. See
-[evaluation notes](evaluation_notes.md).
-
 ## LINK and CORRECT
 
 `link` and `correct` replicate Wang et al.'s fact metrics, as in
@@ -167,10 +159,10 @@ grounding = supported facts / extracted facts
 
 ## Model metrics
 
-`bertscore`, `bleurt`, and `clinical_bertscore` run neural models, so they need the
-`semantic` extra: `uv sync --extra semantic`. Weights download from Hugging Face the
-first time a run scores with them, into its cache. Set `HF_HOME` to move it, for
-instance to shared storage on a cluster, and `HF_HUB_OFFLINE=1` on nodes without
+`bertscore`, `bleurt`, `negbleurt`, and `clinical_bertscore` run neural models, so they
+need the `semantic` extra: `uv sync --extra semantic`. Weights download from Hugging
+Face the first time a run scores with them, into its cache. Set `HF_HOME` to move it,
+for instance to shared storage on a cluster, and `HF_HUB_OFFLINE=1` on nodes without
 internet once it's filled. `device = "auto"` picks CUDA, then Apple MPS, then CPU.
 
 Defaults reproduce each paper; `[metric_settings]` changes them per experiment, and
@@ -184,6 +176,9 @@ device = "cuda"
 [metric_settings.bleurt]
 checkpoint = "lucadiliello/BLEURT-20-D12"  # default: BLEURT-20, about 2 GB
 
+[metric_settings.negbleurt]
+checkpoint = "/shared/models/NegBLEURT"    # default: tum-nlp/NegBLEURT, 17 MB
+
 [metric_settings.clinical_bertscore]
 medical_weight = 0.4                       # the paper's tuned k
 terms = "~/terms/medical_terms_es.txt"     # one term per line
@@ -193,17 +188,42 @@ terms = "~/terms/medical_terms_es.txt"     # one term per line
 | --- | --- | --- |
 | `bertscore` | `roberta-large`, layer 17, in English; multilingual BERT otherwise | [Zhang et al. 2020](https://arxiv.org/abs/1904.09675), through their `bert-score` package. F1, no IDF, no rescaling: what ADS_evaluation gets from Hugging Face `evaluate` with `lang="en"` |
 | `bleurt` | BLEURT-20 | [Sellam et al. 2020](https://arxiv.org/abs/2004.04696). Google's code needs TensorFlow, so this uses the `bleurt-pytorch` port and its conversions of the official checkpoints. Not comparable across checkpoints |
+| `negbleurt` | `tum-nlp/NegBLEURT`, English only | [Anschütz et al. 2023](https://aclanthology.org/2023.inlg-main.12/). The authors' checkpoint, loaded with `transformers` as their [model card](https://huggingface.co/tum-nlp/NegBLEURT) and [code](https://github.com/MiriUll/negation_aware_evaluation) do. Weights CC BY-SA 4.0. Adapted below |
 | `clinical_bertscore` | BERTScore's model, k = 0.4, MedWER's term list | [Shor et al. 2023](https://arxiv.org/abs/2303.05737), adapted below |
 
 Inputs past 512 tokens are truncated, and `truncated` counts them. Generated notes
 can reach that; transcripts always would, hence the split below.
 
+**NegBLEURT** is BLEURT-tiny fine-tuned to score a negated statement low. The authors
+trained it on CANNOT-WMT: 62K English sentence pairs, 88% from their CANNOT dataset,
+labeled 0 when one sentence negates the other and 1 when it paraphrases it, and 12%
+WMT ratings. Its output is unbounded but mostly falls between 0 and 1. The reference
+goes first in the pair, as in their code.
+
+- **Whole notes, not sentences.** The paper scored sentence pairs. Here a note and its
+  reference are one pair, so the paper's scale doesn't carry over. On a synthetic
+  12-sentence SOAP note, 261 tokens as a pair, the identical note scored 0.62,
+  flipping "denies chest pain" to "reports chest pain" 0.47, and dropping that
+  sentence 0.39. One case, but enough to not read a whole-note score as a negation
+  detector. Compare it between runs, not with the paper.
+- **Truncation.** Pairs past 512 tokens, the length BLEURT-tiny was trained with, are
+  cut. The longer text loses tokens first, as in BLEURT. The checkpoint's tokenizer
+  sets no limit, so `max_length` does.
+- **English only,** like the model. Other languages are `n/a`, with the reason, and
+  need no extra.
+
+Checked through this metric, on CPU: against "Ray Charles is legendary.", the model
+card's example scores 0.8409 for "Ray Charles is a legend." and 0.2601 for "Ray Charles
+isn't legendary.", as the card reports. The paper's Figure 1 shows 0.84 and 0.27. Its
+CANNOT-WMT and DEMETR results weren't reproduced.
+
 **Clinical BERTScore** is `k × BERTScore_medical + (1 − k) × BERTScore_all`, where the
 medical part weighs only tokens of medical terms and numbers. The paper released no
 code, so three things differ:
 
-- Its 20K medical words come from Google's Knowledge Graph and aren't public. MedWER's
-  19K-term list stands in, so English only unless `terms` points to another list.
+- Its 20K medical words come from Google's Knowledge Graph and aren't public. The
+  19K-term list from [MedWER](https://github.com/Nordis-Tech/medwer), a preprint,
+  stands in, so English only unless `terms` points to another list.
 - It scored single sentences. Here each reference utterance is paired with the
   predicted words aligned to it, as for WER, and the sample weighs utterances by
   reference words.
