@@ -37,6 +37,19 @@ checkout next to this repository; `uv sync` installs it through the `dev` group.
 Without that checkout, `uv sync --frozen --no-dev --group checks` installs the
 harness and its checks, and the Scribnic tests skip. CI does the same.
 
+To evaluate Scribnic on PriMock57, on Linux or macOS on Apple Silicon, one script
+installs everything, calls Scribnic's own `setup` for the English workflow, and converts
+the data. Then check the machine on two consultations before the full run:
+
+```bash
+scripts/setup_scribnic.sh            # all 57 consultations; pass a number for fewer
+uv run scribe-eval run experiments/primock57_smoke.toml
+uv run scribe-eval run experiments/primock57_full.toml --no-score
+uv run scribe-eval runs              # from another terminal
+```
+
+By hand, without the script:
+
 ```bash
 uv sync
 uv run scribe-eval prepare smoke
