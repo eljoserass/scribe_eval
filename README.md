@@ -48,7 +48,7 @@ uv run scribe-eval run experiments/primock57_full.toml --no-score
 uv run scribe-eval runs              # from another terminal
 ```
 
-Without Scribnic:
+By hand, without the script:
 
 ```bash
 uv sync
