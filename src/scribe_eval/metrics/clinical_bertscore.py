@@ -41,7 +41,6 @@ import jiwer
 from ..types import Prediction, Requires, Sample, Score, find_artifact
 from .models import LoadedModels, apply_settings, require_semantic, resolve_device
 from .text import normalize_text
-from .transcription import keep_terms
 
 
 def split_by_reference(
@@ -109,6 +108,23 @@ def _is_number(word: str, numbers: frozenset[str]) -> bool:
 
 
 @lru_cache(maxsize=4)
+def keep_terms(text: str, terms: frozenset[str], longest: int) -> list[str]:
+    """Keep only medical terms, longest match first, each as one token."""
+    words = text.split()
+    kept = []
+    position = 0
+    while position < len(words):
+        for size in range(min(longest, len(words) - position), 0, -1):
+            candidate = " ".join(words[position : position + size])
+            if candidate in terms:
+                kept.append(candidate.replace(" ", "_"))
+                position += size
+                break
+        else:
+            position += 1
+    return kept
+
+
 def _load_terms(path: str, language: str) -> tuple[frozenset[str], int]:
     """Read a term list in normalized form, with the longest term's length."""
     lines = Path(path).read_text(encoding="utf-8").splitlines()
