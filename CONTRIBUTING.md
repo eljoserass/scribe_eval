@@ -42,3 +42,14 @@ Datasets, runs, and recordings stay out of git. Do not send dataset content to
 external services without an explicit decision. Clinical data stays local; a
 remote judge is only for public or synthetic data. Never paste clinical or patient
 data into issues or pull requests.
+
+## Releases
+
+Each release closes a GitHub milestone.
+
+1. Move the `[Unreleased]` entries in `CHANGELOG.md` under the new version and date,
+   with a **Tested on** list: platforms, the workflow and data that ran, and the
+   result.
+2. Set `version` in `pyproject.toml`.
+3. Merge, then tag `vX.Y.Z` on `main` and publish a GitHub release with the
+   changelog section as notes.
