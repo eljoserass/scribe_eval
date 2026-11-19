@@ -16,3 +16,6 @@ wheels/
 /data/
 /runs/
 /workflows/
+
+# Links to scribes and models outside the repository, made by setup scripts
+/vendor/

@@ -2,7 +2,8 @@
 
 An evaluation harness for clinical scribes. It runs a scribe over datasets, scores
 what comes out, and keeps every run resumable. Any scribe can plug in by implementing
-one interface; [Scribnic](../scribnic) is the first.
+one interface; [Scribnic](../scribnic) and
+[Berta AI Scribe](https://github.com/phairlab/berta-ai-scribe) are built in.
 
 A digital scribe listens to a consultation and drafts a note, usually SOAP, that a
 clinician checks and files. It looks like a meeting summarizer, with three
@@ -60,6 +61,17 @@ uv run scribe-eval run experiments/smoke.toml
 
 uv run scribe-eval prepare primock57 --limit 3
 uv run scribe-eval run experiments/primock57_sample.toml
+```
+
+Berta AI Scribe runs the same PriMock57 experiments with Whisper small and Scribnic's
+note model. It needs `ffmpeg` and the Scribnic checkout; its script installs Berta's
+own environment and links the models.
+[Berta AI Scribe](docs/pipelines.md#berta-ai-scribe) lists what differs from Scribnic.
+
+```bash
+scripts/setup_berta.sh               # all 57 consultations; pass a number for fewer
+uv run scribe-eval run experiments/berta_primock57_smoke.toml
+uv run scribe-eval compare runs/<scribnic-run> runs/<berta-run>
 ```
 
 TEME-v1 is the Spanish dataset: 90 consultations with TTS audio and no reference notes.

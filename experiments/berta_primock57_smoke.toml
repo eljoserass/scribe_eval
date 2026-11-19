@@ -1,0 +1,20 @@
+# Berta AI Scribe on two consultations, to check a machine before the full run.
+# Same metrics as primock57_smoke.toml. scripts/setup_berta.sh makes vendor/berta.
+# Whisper small and the note model match Scribnic's whisper_small_bonsai_en; see
+# docs/pipelines.md for what still differs.
+name = "berta-primock57-smoke"
+
+[pipeline]
+type = "berta"
+berta_directory = "../vendor/berta/web-api"
+llama_server = "../vendor/berta/llama-server"
+note_model = "../vendor/berta/Ternary-Bonsai-2-2B-PQ2_0.gguf"
+whisper_model = "small"
+
+[[datasets]]
+name = "primock57"
+split = "all"
+input = "audio"
+limit = 2
+seed = 42
+metrics = ["transcription", "note_format", "note_reference", "resources"]
