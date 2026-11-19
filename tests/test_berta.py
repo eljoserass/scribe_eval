@@ -18,6 +18,7 @@ from scribe_eval import run_experiment
 from scribe_eval.artifacts import AudioFile, Transcript
 from scribe_eval.pipelines import create_pipeline
 from scribe_eval.pipelines.berta import BertaPipeline, worker
+from scribe_eval.pipelines.berta.pipeline import _request
 from scribe_eval.pipelines.berta.processes import parse_metrics
 from scribe_eval.pipelines.berta.telemetry import note_timings
 from scribe_eval.storage import read_jsonl
@@ -362,6 +363,13 @@ class PipelineTests(unittest.TestCase):
                 pipeline.prepare("audio")
             self.assertIsNone(pipeline._worker)
         self.assertIsNone(pipeline._server)
+
+
+class RequestTests(unittest.TestCase):
+    def test_relative_audio_paths_become_absolute(self):
+        request = _request(AudioFile(Path("data/sample/audio.wav")))
+        self.assertTrue(Path(request["audio"]).is_absolute())
+        self.assertEqual(Path(request["audio"]), Path.cwd() / "data/sample/audio.wav")
 
 
 class TelemetryTests(unittest.TestCase):

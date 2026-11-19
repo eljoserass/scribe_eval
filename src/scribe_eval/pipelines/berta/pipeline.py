@@ -417,9 +417,13 @@ class BertaPipeline:
 
 
 def _request(source: Artifact) -> dict[str, str]:
-    """Build the worker's request; Berta's transcripts carry no speakers."""
+    """Build the worker's request; Berta's transcripts carry no speakers.
+
+    Audio paths are made absolute because the worker runs in Berta's `web-api`
+    directory, where a path relative to the harness would not exist.
+    """
     if isinstance(source, AudioFile):
-        return {"audio": str(source.path)}
+        return {"audio": str(Path(source.path).resolve())}
     if isinstance(source, DiarizedTranscript):
         return {"transcript": source.without_speakers().text}
     if isinstance(source, Transcript):
