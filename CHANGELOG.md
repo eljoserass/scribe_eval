@@ -2,10 +2,22 @@
 
 Notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html). No release has been
-tagged yet.
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html); 0.x minor versions may
+break interfaces.
 
 ## [Unreleased]
+
+## [0.1.0] - 2026-11-19
+
+First release: Scribnic runs PriMock57 end to end.
+
+### Tested on
+
+- macOS 15.6, Apple M3 Ultra: Scribnic `whisper_small_bonsai_en` on all 57 PriMock57
+  consultations, 53 ok and 4 failed in Scribnic's note step, scored with the
+  transcription, note format, note reference, and resource metrics.
+- Linux, WSL2 x86_64: the same workflow on a 2-consultation smoke run.
+- CI: Ubuntu and macOS, Python 3.12 and 3.15.
 
 ### Added
 
@@ -30,7 +42,10 @@ tagged yet.
   and token throughput, with hardware recorded per run.
 - CI on Linux and macOS with Python 3.12 and 3.15, and Dependabot for GitHub
   Actions.
+- `scripts/setup_scribnic.sh` installs Scribnic's English workflow and prepares
+  PriMock57 on Linux and macOS.
 - HTML report per run, `scribe-eval compare` for finished runs, and
   `scribe-eval runs` to list running, failed, and stale runs.
 
-[Unreleased]: https://github.com/eljoserass/scribe_eval/commits/main
+[Unreleased]: https://github.com/eljoserass/scribe_eval/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/eljoserass/scribe_eval/releases/tag/v0.1.0
