@@ -153,9 +153,11 @@ saved for the report's chart in `berta-timeline.jsonl`. Each sample's
 
 ### Compared with Scribnic
 
-`berta_primock57_*.toml` match Scribnic's `whisper_small_bonsai_en` where Berta
-allows: Whisper small for transcription, and the same note model on the same
-llama-server build and options. The rest is Berta's.
+`berta_primock57_*.toml` borrow Scribnic's models: Whisper small for transcription,
+and the same note model on the same llama-server build and options. That makes them a
+hybrid. They are not Berta out of the box, whose defaults are Parakeet MLX for
+transcription and `llama3.1:8b` through Ollama for notes. Nor are they a controlled
+comparison: the speech runtime, sampling, and limits differ, as below.
 
 | | Scribnic `whisper_small_bonsai_en` | Berta |
 | --- | --- | --- |
@@ -183,6 +185,10 @@ compare the scribes as a whole, prompt included.
   speakers, as Berta's own transcripts have none.
 - WhisperX runs on CPU on macOS: CTranslate2 has no Metal backend.
 - A worker hang has no timeout. Berta's llama.cpp adapter gives up after 300 s.
+- The setup leans on Scribnic: `scripts/setup_berta.sh` takes llama-server and the
+  Bonsai GGUF from Scribnic's cache, and runs `scribnic setup` when they are missing.
+- The pipeline always starts its own worker and llama-server. An already running Berta
+  or LLM server can't be used; it would also leave its memory out of the telemetry.
 
 ### Verified
 
@@ -196,4 +202,11 @@ run gave the same transcripts and notes. Without other load on the machine:
 | `day1_consultation01` | 138.6 s | 115.9 s | 22.6 s | 0.176 | 106 |
 | `day1_consultation03` | 151.1 s | 126.6 s | 24.5 s | 0.175 | 111 |
 
-Peak memory of both processes together was 3.0 GB. Not run on macOS yet.
+Peak memory of both processes together was 3.0 GB.
+
+On macOS 15.6 (Mac Studio, M3 Ultra), `berta_primock57_full.toml` ran all 57
+consultations with no failed rows: 179 s per consultation, 176 s of it transcription on
+CPU; global WER 0.172; peak memory 6.7 GB. Four notes ran past 1,000 words (at most
+2,674), repeating plan lines until the 4,096-token limit, and one listed dialysis and
+an orthopedics follow-up that the consultation doesn't mention. Berta accepts these
+notes, so no failure rows flag them.
