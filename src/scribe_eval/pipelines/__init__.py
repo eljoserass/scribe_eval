@@ -7,7 +7,10 @@ from .base import Pipeline, PipelineResult, Timeline
 
 __all__ = ["Pipeline", "PipelineResult", "Timeline", "create_pipeline"]
 
-_BUILT_IN = {"scribnic": "scribe_eval.pipelines.scribnic:ScribnicPipeline"}
+_BUILT_IN = {
+    "berta": "scribe_eval.pipelines.berta:BertaPipeline",
+    "scribnic": "scribe_eval.pipelines.scribnic:ScribnicPipeline",
+}
 
 
 def create_pipeline(

@@ -185,6 +185,10 @@ A pipeline's dependencies are an optional extra. Incompatible stacks, like Scrib
 `moss` and `moss-audio`, can't share a process, so the environment is chosen at launch.
 With one pipeline per run, nothing needs orchestrating. `manifest.json` records versions.
 
+A scribe that can't be imported at all runs as a process the pipeline owns. Berta
+configures itself at import and pins its own Python, so its pipeline starts a worker
+in Berta's environment and talks to it over stdin and stdout.
+
 ## Language
 
 Metrics use each dataset's language, and pipelines must match it. English results
@@ -218,6 +222,7 @@ src/scribe_eval/
 ├── pipelines/
 │   ├── __init__.py   # factory
 │   ├── base.py       # the interface
+│   ├── berta/        # runs Berta in its own environment, through a worker
 │   └── scribnic/     # the only code that imports Scribnic
 ├── datasets/
 │   ├── prepared.py   # common format and its loader

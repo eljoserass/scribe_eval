@@ -7,6 +7,20 @@ break interfaces.
 
 ## [Unreleased]
 
+### Tested on
+
+- Linux, WSL2 x86_64: Berta AI Scribe on the 2-consultation PriMock57 smoke run.
+
+### Added
+
+- Berta AI Scribe pipeline, `type = "berta"`: Berta's own transcription and note
+  tasks, run in its own environment by a worker process, with Whisper small and the
+  note model and llama-server Scribnic's English workflow uses. Telemetry covers
+  both processes, phases, and tokens.
+- `scripts/setup_berta.sh` installs Berta's environment and links the models on
+  Linux and macOS, and `experiments/berta_primock57_smoke.toml` and
+  `berta_primock57_full.toml` run PriMock57 with Scribnic's metrics.
+
 ## [0.1.0] - 2026-11-19
 
 First release: Scribnic runs PriMock57 end to end.
