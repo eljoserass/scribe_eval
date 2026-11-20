@@ -114,4 +114,4 @@ else
   uv run --no-sync scribe-eval prepare primock57
 fi
 
-echo "Done. Try: uv run --no-sync scribe-eval run experiments/berta_primock57_smoke.toml"
+echo "Done. Try: uv run --no-sync scribe-eval run experiments/primock57/berta_smoke.toml"

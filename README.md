@@ -47,8 +47,8 @@ the data. Then check the machine on two consultations before the full run:
 
 ```bash
 scripts/setup_scribnic.sh            # all 57 consultations; pass a number for fewer
-uv run scribe-eval run experiments/primock57_smoke.toml
-uv run scribe-eval run experiments/primock57_full.toml --no-score
+uv run scribe-eval run experiments/primock57/scribnic_smoke.toml
+uv run scribe-eval run experiments/primock57/scribnic_full.toml --no-score
 uv run scribe-eval runs              # from another terminal
 ```
 
@@ -57,10 +57,10 @@ By hand, without the script:
 ```bash
 uv sync
 uv run scribe-eval prepare smoke
-uv run scribe-eval run experiments/smoke.toml
+uv run scribe-eval run experiments/smoke/scribnic.toml
 
 uv run scribe-eval prepare primock57 --limit 3
-uv run scribe-eval run experiments/primock57_sample.toml
+uv run scribe-eval run experiments/primock57/scribnic_sample.toml
 ```
 
 Berta AI Scribe runs the same PriMock57 experiments with Whisper small and Scribnic's
@@ -70,7 +70,7 @@ own environment and links the models.
 
 ```bash
 scripts/setup_berta.sh               # all 57 consultations; pass a number for fewer
-uv run scribe-eval run experiments/berta_primock57_smoke.toml
+uv run scribe-eval run experiments/primock57/berta_smoke.toml
 uv run scribe-eval compare runs/<scribnic-run> runs/<berta-run>
 ```
 
@@ -80,7 +80,7 @@ as described in [metrics](docs/metrics.md#link-and-correct).
 
 ```bash
 uv run scribe-eval prepare teme
-uv run scribe-eval run experiments/teme_es.toml
+uv run scribe-eval run experiments/teme/scribnic_es.toml
 ```
 
 Heavy metrics are optional extras: `uv sync --extra semantic` for BERTScore, BLEURT,
@@ -96,7 +96,7 @@ and saves its predictions, so a long run needs no judge or metric models; `score
 finishes it later. To continue or rescore one:
 
 ```bash
-uv run scribe-eval run experiments/primock57_full.toml --no-score
+uv run scribe-eval run experiments/primock57/scribnic_full.toml --no-score
 uv run scribe-eval resume runs/<run>
 uv run scribe-eval resume runs/<run> --retry-errors
 uv run scribe-eval score runs/<run>
@@ -120,7 +120,7 @@ failures first, and warns when runs scored different samples or metric versions:
 uv run scribe-eval compare runs/<run-a> runs/<run-b>
 ```
 
-`experiments/primock57_full.toml` runs all 57 consultations. That is hours on CPU,
+`experiments/primock57/scribnic_full.toml` runs all 57 consultations. That is hours on CPU,
 so it is meant for a server: prepare the data there, or copy `data/` and set
 `SCRIBE_EVAL_DATA`.
 

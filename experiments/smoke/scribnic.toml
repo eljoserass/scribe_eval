@@ -1,5 +1,6 @@
 # One Spanish sample through the full pipeline. Its reference note is a fixture.
-name = "smoke"
+# Kind: out of the box.
+name = "scribnic-smoke"
 
 [pipeline]
 type = "scribnic"

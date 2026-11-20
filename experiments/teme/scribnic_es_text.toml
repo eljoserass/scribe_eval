@@ -1,6 +1,7 @@
 # The note step alone: TEME-v1 scripts, without speaker labels, go straight to the
-# note model. Compare with teme_es.toml to see what transcription errors cost.
-name = "teme-es-text"
+# note model. Compare with scribnic_es.toml to see what transcription errors cost.
+# Kind: out of the box.
+name = "scribnic-teme-es-text"
 
 [pipeline]
 type = "scribnic"

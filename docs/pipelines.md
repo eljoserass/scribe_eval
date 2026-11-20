@@ -86,7 +86,7 @@ workflow uses, so a Scribnic checkout must sit next to this repository.
 
 ```bash
 scripts/setup_berta.sh               # BERTA_DIR, SCRIBNIC_DIR, BERTA_TORCH_BACKEND
-uv run scribe-eval run experiments/berta_primock57_smoke.toml
+uv run scribe-eval run experiments/primock57/berta_smoke.toml
 ```
 
 The script needs `uv`, `ffmpeg`, and `git`, on Linux or macOS on Apple Silicon. It:
@@ -153,7 +153,7 @@ saved for the report's chart in `berta-timeline.jsonl`. Each sample's
 
 ### Compared with Scribnic
 
-`berta_primock57_*.toml` borrow Scribnic's models: Whisper small for transcription,
+`experiments/primock57/berta_*.toml` borrow Scribnic's models: Whisper small for transcription,
 and the same note model on the same llama-server build and options. That makes them a
 hybrid. They are not Berta out of the box, whose defaults are Parakeet MLX for
 transcription and `llama3.1:8b` through Ollama for notes. Nor are they a controlled
@@ -192,7 +192,7 @@ compare the scribes as a whole, prompt included.
 
 ### Verified
 
-On Linux (WSL2, x86_64, CPU), `berta_primock57_smoke.toml` ran end to end on
+On Linux (WSL2, x86_64, CPU), `experiments/primock57/berta_smoke.toml` ran end to end on
 `day1_consultation01` and `day1_consultation03`, with Berta 0.6.0 at commit
 `87fe138`, WhisperX 3.8.6, and Prism llama-server b10787. Both succeeded, and a second
 run gave the same transcripts and notes. Without other load on the machine:
@@ -204,7 +204,7 @@ run gave the same transcripts and notes. Without other load on the machine:
 
 Peak memory of both processes together was 3.0 GB.
 
-On macOS 15.6 (Mac Studio, M3 Ultra), `berta_primock57_full.toml` ran all 57
+On macOS 15.6 (Mac Studio, M3 Ultra), `experiments/primock57/berta_full.toml` ran all 57
 consultations with no failed rows: 179 s per consultation, 176 s of it transcription on
 CPU; global WER 0.172; peak memory 6.7 GB. Four notes ran past 1,000 words (at most
 2,674), repeating plan lines until the 4,096-token limit, and one listed dialysis and

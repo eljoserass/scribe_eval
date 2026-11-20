@@ -1,6 +1,7 @@
 # Spanish audio to note on TEME-v1. TTS audio flatters WER, and there are no
 # reference notes: grounding checks the note against the script with a local judge.
-name = "teme-es"
+# Kind: out of the box.
+name = "scribnic-teme-es"
 
 [pipeline]
 type = "scribnic"

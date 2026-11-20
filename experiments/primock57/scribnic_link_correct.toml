@@ -1,9 +1,10 @@
 # LINK and CORRECT need a judge: any OpenAI-compatible server. See docs/metrics.md.
-name = "primock57-link-correct"
+# Kind: out of the box, with Scribnic's English workflow.
+name = "scribnic-primock57-link-correct"
 
 [pipeline]
 type = "scribnic"
-workflow = "../workflows/whisper_small_bonsai_en.toml"
+workflow = "../../workflows/whisper_small_bonsai_en.toml"
 
 [judge]
 base_url = "http://127.0.0.1:8090/v1"

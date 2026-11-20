@@ -10,6 +10,8 @@ break interfaces.
 ### Tested on
 
 - Linux, WSL2 x86_64: Berta AI Scribe on the 2-consultation PriMock57 smoke run.
+- macOS 15.6, Apple M3 Ultra: Berta AI Scribe on all 57 PriMock57 consultations, no
+  failed rows.
 
 ### Added
 
@@ -18,8 +20,14 @@ break interfaces.
   note model and llama-server Scribnic's English workflow uses. Telemetry covers
   both processes, phases, and tokens.
 - `scripts/setup_berta.sh` installs Berta's environment and links the models on
-  Linux and macOS, and `experiments/berta_primock57_smoke.toml` and
-  `berta_primock57_full.toml` run PriMock57 with Scribnic's metrics.
+  Linux and macOS, and `experiments/primock57/berta_smoke.toml` and
+  `berta_full.toml` run PriMock57 with Scribnic's metrics.
+
+### Changed
+
+- Experiments are grouped by dataset and named after their pipeline, as in
+  `experiments/primock57/scribnic_full.toml`. Each says whether it runs a scribe out of
+  the box or a hybrid.
 
 ## [0.1.0] - 2026-11-19
 
