@@ -1,10 +1,11 @@
 # Two consultations, to check a machine end to end before the full run.
 # Cheap metrics only: no judge, no neural models.
-name = "primock57-smoke"
+# Kind: out of the box, with Scribnic's English workflow.
+name = "scribnic-primock57-smoke"
 
 [pipeline]
 type = "scribnic"
-workflow = "../workflows/whisper_small_bonsai_en.toml"
+workflow = "../../workflows/whisper_small_bonsai_en.toml"
 
 [[datasets]]
 name = "primock57"

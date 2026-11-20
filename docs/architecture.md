@@ -12,7 +12,8 @@ particular scribe: each one implements `Pipeline`, and the experiment picks whic
 3. **Inference and scoring are separate.** A new metric or judge never regenerates
    notes.
 4. **An experiment is a definition; a run is an execution.** `experiments/` holds
-   versioned TOML. `runs/` holds what was generated, with sample IDs frozen.
+   versioned TOML, one folder per dataset and one file per pipeline, each
+   self-contained. `runs/` holds what was generated, with sample IDs frozen.
 5. **Datasets convert once to a common format.** One loader reads them all.
 6. **Explicit registries.** Datasets and metrics live in plain dictionaries.
 7. **The CLI is a frontend.** Everything works from `application.py`.

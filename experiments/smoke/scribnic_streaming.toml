@@ -1,5 +1,6 @@
 # The smoke sample through the rolling window, fed as fast as it can process.
-name = "smoke-streaming"
+# Kind: out of the box.
+name = "scribnic-smoke-streaming"
 
 [pipeline]
 type = "scribnic"

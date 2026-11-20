@@ -1,9 +1,10 @@
 # A few consultations, sized for a laptop.
-name = "primock57-sample"
+# Kind: out of the box, with Scribnic's English workflow.
+name = "scribnic-primock57-sample"
 
 [pipeline]
 type = "scribnic"
-workflow = "../workflows/whisper_small_bonsai_en.toml"
+workflow = "../../workflows/whisper_small_bonsai_en.toml"
 
 [[datasets]]
 name = "primock57"

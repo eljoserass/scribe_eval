@@ -45,4 +45,4 @@ else
   uv run scribe-eval prepare primock57
 fi
 
-echo "Done. Try: uv run scribe-eval run experiments/primock57_smoke.toml"
+echo "Done. Try: uv run scribe-eval run experiments/primock57/scribnic_smoke.toml"

@@ -1,0 +1,17 @@
+# Berta AI Scribe on all consultations. Expect hours on CPU; meant for a server.
+# Same metrics as scribnic_full.toml. scripts/setup_berta.sh makes vendor/berta.
+# Kind: hybrid, Berta with Scribnic's models (docs/pipelines.md).
+name = "berta-primock57-full"
+
+[pipeline]
+type = "berta"
+berta_directory = "../../vendor/berta/web-api"
+llama_server = "../../vendor/berta/llama-server"
+note_model = "../../vendor/berta/Ternary-Bonsai-2-2B-PQ2_0.gguf"
+whisper_model = "small"
+
+[[datasets]]
+name = "primock57"
+split = "all"
+input = "audio"
+metrics = ["transcription", "note_format", "note_reference", "resources"]
