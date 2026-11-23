@@ -62,7 +62,6 @@ Not scheduled. "Have" is what the harness computes today.
 | Candidate | Have | Would add | Source |
 | --- | --- | --- | --- |
 | ROUGE-Lsum | ROUGE-1, 2, L | The summary-level variant used by ACI-BENCH and CliniKnote | MEDIQA-Chat 2023 |
-| ROUGE-1 recall | ROUGE-1 F1; BERTScore already reports recall | ROUGE-1 recall. With BERTScore recall, among the metrics most correlated with clinicians across datasets | Ben Abacha et al., Findings ACL 2023 |
 | MedBERTScore, MedBARTScore | BERTScore | Extra weight on medical terms. MedBARTScore led on factual precision and hallucination for MTS-Dialog | Ben Abacha et al. 2023; code without license |
 | MIST, MIST-Comb | ROUGE-1, BERTScore, BLEURT | UMLS knowledge-graph embeddings, alone or averaged with those three. MIST-Comb tied for the best overall correlation | Ben Abacha et al. 2023; MIST code not released |
 | ClinicalBLEURT | BLEURT | BLEURT fine-tuned on clinical notes. Best on hallucination in three in-house datasets | Ben Abacha et al. 2023; checkpoint availability unverified |

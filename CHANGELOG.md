@@ -25,6 +25,9 @@ break interfaces.
 
 ### Changed
 
+- ROUGE keeps precision and recall beside F1, per sample and averaged. On
+  PriMock57, ROUGE-L precision tracked incorrect statements and recall tracked
+  omissions better than F1 (Moramarco et al. 2022).
 - Experiments are grouped by dataset and named after their pipeline, as in
   `experiments/primock57/scribnic_full.toml`. Each says whether it runs a scribe out of
   the box or a hybrid.

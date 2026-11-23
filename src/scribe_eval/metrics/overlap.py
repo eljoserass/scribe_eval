@@ -18,6 +18,7 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from functools import lru_cache
+from statistics import fmean
 
 import nltk
 from nltk.translate.meteor_score import meteor_score
@@ -82,15 +83,27 @@ class Rouge:
         object.__setattr__(self, "requires", _requires(self))
 
     def score(self, prediction: Prediction, sample: Sample) -> Score:
-        """Compare a text with its reference."""
+        """Compare a text with its reference: F1, with precision and recall in details.
+
+        Precision is the share of the generated text found in the reference; recall is
+        the share of the reference found in the generated text.
+        """
         generated, reference = _texts(prediction, sample, self.kind)
         scorer = _rouge(self.rouge_type, sample.language)
         result = scorer.score(reference, generated)[self.rouge_type]
-        return Score(self.name, result.fmeasure)
+        details = {"precision": result.precision, "recall": result.recall}
+        return Score(self.name, result.fmeasure, details)
 
     def aggregate(self, scores: Sequence[Score]) -> dict[str, float]:
-        """Average scores."""
-        return mean_values(scores)
+        """Average F1, and precision and recall when every score has them.
+
+        Scores saved before precision and recall were kept have only F1.
+        """
+        result = mean_values(scores)
+        for key in ("precision", "recall"):
+            if all(key in score.details for score in scores):
+                result[key] = fmean(score.details[key] for score in scores)
+        return result
 
 
 @dataclass(frozen=True)
