@@ -182,6 +182,20 @@ class OverlapTests(unittest.TestCase):
         self.assertEqual(self.score("rouge_1", "dolor", "calor", "es").value, 0.0)
         self.assertEqual(self.score("rouge_1", "día", "día", "es").value, 1.0)
 
+    def test_rouge_keeps_precision_and_recall(self):
+        score = self.score("rouge_1", "no fever", "no fever since monday")
+        self.assertEqual(score.details["precision"], 1.0)
+        self.assertEqual(score.details["recall"], 0.5)
+
+    def test_rouge_aggregates_precision_and_recall_only_when_present(self):
+        metric = METRICS["rouge_1"]
+        fresh = self.score("rouge_1", "no fever", "no fever since monday")
+        self.assertEqual(metric.aggregate([fresh])["recall"], 0.5)
+        older = Score("rouge_1", 0.5)
+        result = metric.aggregate([fresh, older])
+        self.assertEqual(set(result), {"mean"})
+        self.assertAlmostEqual(result["mean"], (fresh.value + 0.5) / 2)
+
     def test_corpus_bleu_is_not_the_mean_of_samples(self):
         metric = METRICS["bleu"]
         scores = [

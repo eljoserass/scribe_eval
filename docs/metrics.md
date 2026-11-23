@@ -8,7 +8,7 @@ metric or a whole group. Nothing here measures clinical safety yet.
 | Group | Metric | Predicted | Reference | Aggregates |
 | --- | --- | --- | --- | --- |
 | `transcription` | `wer`, `cer` | `transcript` | `transcript` | Global, sample mean |
-| `transcription` | `transcript_rouge_1`, `transcript_rouge_l` | `transcript` | `transcript` | Mean |
+| `transcription` | `transcript_rouge_1`, `transcript_rouge_l` | `transcript` | `transcript` | Mean F1, with precision and recall |
 | `transcription` | `transcript_bleu` | `transcript` | `transcript` | Corpus, mean |
 | `transcription_semantic` | `clinical_bertscore` | `transcript` | `transcript` | Global, sample mean |
 | `diarization` | `der` | `diarized_transcript` | `diarized_transcript` | Global, by cause |
@@ -16,7 +16,7 @@ metric or a whole group. Nothing here measures clinical safety yet.
 | `note_format` | `note_words` | `note` | — | Mean, max |
 | `note_format` | `flesch_reading_ease` | `note` | — | Mean |
 | `note_format` | `compression_ratio` | `note` | `transcript` | Global |
-| `note_reference` | `rouge_1`, `rouge_2`, `rouge_l` | `note` | `note` | Mean |
+| `note_reference` | `rouge_1`, `rouge_2`, `rouge_l` | `note` | `note` | Mean F1, with precision and recall |
 | `note_reference` | `bleu` | `note` | `note` | Corpus, mean |
 | `note_reference` | `meteor` | `note` | `note` | Mean |
 | `note_reference` | `levenshtein` | `note` | `note` | Mean, per character |
