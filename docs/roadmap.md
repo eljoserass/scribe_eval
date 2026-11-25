@@ -69,6 +69,7 @@ Not scheduled. "Have" is what the harness computes today.
 | SapBERT score, CUI F-score | Nothing | UMLS concept embeddings and CUI overlap. SapBERT score was the only one of ten metrics with a significant correlation, still weak (Pearson 0.17) | Croxford et al., AMIA 2024 |
 | QuestEval | Nothing | Reference-free, question-answering consistency | Scialom et al. 2021; used by CliniKnote |
 | NegBLEURT by sentence | NegBLEURT on whole notes | Pairs of matched sentences, where the paper's scale holds | Anschütz et al., INLG 2023 |
+| Self-repetition | `seq_rep` and `repeated_lines` within one note | The share of a system's notes that contain an n-gram of four or more words found in another of its notes: boilerplate across consultations. It needs every note of a dataset at once, and `aggregate` only sees scores | [Salkar et al., AACL 2022](https://arxiv.org/abs/2210.08145) |
 | Metric validation | Nothing | Correlate metrics with MTS-Dialog's correlation-study annotations and PriMock57's human evaluation | Ben Abacha et al. 2023; Moramarco et al. 2022 |
 | Clinical BERTScore validation | Clinical BERTScore | Agreement with the paper's clinician preferences | Shor et al. 2023 |
 

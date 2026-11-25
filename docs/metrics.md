@@ -10,12 +10,14 @@ metric or a whole group. Nothing here measures clinical safety yet.
 | `transcription` | `wer`, `cer` | `transcript` | `transcript` | Global, sample mean |
 | `transcription` | `transcript_rouge_1`, `transcript_rouge_l` | `transcript` | `transcript` | Mean |
 | `transcription` | `transcript_bleu` | `transcript` | `transcript` | Corpus, mean |
+| `transcription` | `transcript_seq_rep` | `transcript` | — | Mean, max |
 | `transcription_semantic` | `clinical_bertscore` | `transcript` | `transcript` | Global, sample mean |
 | `diarization` | `der` | `diarized_transcript` | `diarized_transcript` | Global, by cause |
 | `diarization` | `jer` | `diarized_transcript` | `diarized_transcript` | Mean |
 | `note_format` | `note_words` | `note` | — | Mean, max |
 | `note_format` | `flesch_reading_ease` | `note` | — | Mean |
 | `note_format` | `compression_ratio` | `note` | `transcript` | Global |
+| `note_format` | `seq_rep`, `repeated_lines` | `note` | — | Mean, max |
 | `note_reference` | `rouge_1`, `rouge_2`, `rouge_l` | `note` | `note` | Mean |
 | `note_reference` | `bleu` | `note` | `note` | Corpus, mean |
 | `note_reference` | `meteor` | `note` | `note` | Mean |
@@ -155,6 +157,92 @@ grounding = supported facts / extracted facts
   attribution metric planned below separates them. A note with no facts gets no score.
 - **Not validated.** Neither the prompts nor any judge model have been checked against
   human judgments. PriMock57's incorrect-statement annotations are the planned check.
+
+## Repetition
+
+A generator stuck in a loop repeats itself until its token limit. In the 57-note
+Berta AI Scribe run on PriMock57, four notes passed 1,000 words, one 2,674, by
+repeating plan lines up to the 4,096-token limit. Reference metrics rank such notes
+low, but not reliably, and the model metrics truncate at 512 tokens, so they barely
+see the loop. Repetition was the most frequent issue in clinicians' free-text
+feedback on generated PriMock57 notes, with 93 occurrences
+([Moramarco et al. 2022](https://arxiv.org/abs/2204.00447), Table 5). Whisper's
+authors list repeat loops among its long-form failures
+([Radford et al. 2023](https://arxiv.org/abs/2212.04356)). These metrics need no
+reference and no model.
+
+```text
+seq_rep        = 1 − unique word n-grams / word n-grams      (n = 4)
+repeated_lines = lines that appear more than once / non-empty lines
+```
+
+- **`seq_rep`** and **`transcript_seq_rep`** are seq-rep-n from
+  [Welleck et al., ICLR 2020](https://arxiv.org/abs/1908.04319), within one text: 0
+  when no n-gram repeats, toward 1 when the text is one phrase over and over. The
+  paper scores fixed-length model continuations; here it covers the whole text, in
+  words, after the WER normalization for the sample's language, so case,
+  punctuation, and number formats don't hide a repeat. n = 4, as the paper reports.
+- **`repeated_lines`** is a descriptive count, not a published metric. Lines compare
+  after collapsing whitespace and lowercasing, and every copy counts, the first one
+  included: lines `A, B, A` give 2/3. It catches a loop of identical plan lines
+  directly.
+- **Notes only for lines.** Transcript line breaks follow each pipeline's
+  segmentation, and short turns repeat in any conversation, so a transcript form
+  would measure those. In the Scribnic transcripts measured below, every repeated
+  line was one or two words, and a streaming run that wrote one word per line scored
+  0.565.
+- **Groups.** The note metrics sit in `note_format` with the other reference-free
+  note checks, and `transcript_seq_rep` in `transcription`. Every experiment here
+  lists both groups, so `scribe-eval score` adds the metrics to a finished run.
+- **Aggregates** are the mean and the maximum, so a single runaway text shows beside
+  the average. Per-sample values stay in `scores.jsonl`.
+- **Empty texts.** A text shorter than n words has no n-grams, and a note without a
+  non-empty line has no lines; neither gets a score, so the results' `n` counts only
+  measured texts. `note_words` shows empty notes.
+- **Languages.** Any language that separates words with spaces. Checked on English
+  and Spanish below. In scripts without spaces, such as Chinese, Japanese, or Thai,
+  the normalizer leaves whole sentences as one word, so `seq_rep` is unsupported
+  there and unverified. `repeated_lines` doesn't split words.
+
+`[metric_settings]` sets `n`, and a `threshold` that adds `above_threshold`, the number
+of samples strictly above it. No published threshold exists, so it has no default;
+`manifest.json` records both. `transcript_seq_rep` takes the same settings.
+
+```toml
+[metric_settings.seq_rep]
+n = 3            # n-gram length in words; default 4
+threshold = 0.2  # off unless set
+
+[metric_settings.repeated_lines]
+threshold = 0.2
+```
+
+Measured with the defaults on one machine's local runs, all Scribnic, and on the
+prepared references. Generated texts repeated across runs count once. No text had a
+loop.
+
+| Texts | Count | `seq_rep` mean, max | `repeated_lines` mean, max |
+| --- | --- | --- | --- |
+| PriMock57 reference notes | 3 | 0.000, 0.000 | 0.000, 0.000 |
+| Scribnic notes, PriMock57 and smoke | 6 | 0.013, 0.029 | 0.000, 0.000 |
+| PriMock57 reference transcripts | 3 | 0.024, 0.033 | 0.153, 0.180 |
+| Scribnic transcripts, PriMock57 and smoke | 6 | 0.012, 0.031 | 0.179, 0.565 |
+| TEME-v1 reference transcripts, Spanish | 90 | 0.004, 0.022 | 0.013, 0.250 |
+
+Berta's looping notes weren't available locally, so their values aren't measured yet.
+
+What they miss:
+
+- A loop that rewords itself each time. Numbering or punctuation that changes between
+  copies hides a line from `repeated_lines`, though `seq_rep` still sees the words.
+- Legitimate repeats count too, such as "None." under several headings, and they
+  weigh most in short notes. Read both beside `note_words`.
+- English normalization drops text in parentheses and brackets, as for WER.
+- Boilerplate shared across a system's notes rather than within one. Salkar et al.
+  measure that; see [candidate metrics](roadmap.md#candidate-metrics).
+- Distinct-n ([Li et al., NAACL 2016](https://arxiv.org/abs/1510.03055)) divides the
+  distinct n-grams in generated responses by the generated words. Within one text that
+  is nearly 1 − `seq_rep`, so it isn't added.
 
 
 ## Model metrics

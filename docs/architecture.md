@@ -235,8 +235,9 @@ src/scribe_eval/
     ├── overlap.py    # ROUGE, BLEU, METEOR, Levenshtein
     ├── semantic.py   # BERTScore, BLEURT, NegBLEURT
     ├── clinical_bertscore.py
-    ├── models.py     # loading, devices, settings for model metrics
+    ├── models.py     # loading and devices for model metrics; metric settings
     ├── note_format.py
+    ├── repetition.py # repeated n-grams and lines, without a reference
     ├── link_correct.py
     ├── grounding.py  # note facts against the transcript
     ├── resources.py
