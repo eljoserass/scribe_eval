@@ -66,6 +66,27 @@ class CompareTests(unittest.TestCase):
         self.assertIn("different samples", warnings)
         self.assertIn("'wer' changed version", warnings)
 
+    def test_different_metric_settings_are_warned(self):
+        runs = [record("x", wer=0.2), record("y", wer=0.1), record("z", wer=0.3)]
+        settings = [
+            {"bleurt": {"long_text": "truncate", "max_length": 512}},
+            {"bleurt": {"long_text": "sentences", "max_length": 512, "punkt": "en"}},
+            {"bleurt": {"long_text": "truncate", "max_length": 512}},
+        ]
+        for run, recorded in zip(runs, settings, strict=True):
+            run.manifest["datasets"]["tiny"]["metric_settings"] = recorded
+        comparison = compare(runs)
+        self.assertEqual(
+            comparison.warnings, ("tiny: metric 'bleurt' used different long_text.",)
+        )
+
+    def test_settings_only_some_runs_recorded_are_not_compared(self):
+        old, new = record("x", wer=0.2), record("y", wer=0.1)
+        new.manifest["datasets"]["tiny"]["metric_settings"] = {
+            "bleurt": {"long_text": "truncate"}
+        }
+        self.assertEqual(compare([old, new]).warnings, ())
+
     def test_needs_two_distinct_runs(self):
         with self.assertRaisesRegex(ValueError, "two runs"):
             compare([record("x", wer=0.2)])

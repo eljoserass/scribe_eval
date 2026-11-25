@@ -234,6 +234,7 @@ src/scribe_eval/
     ├── diarization.py
     ├── overlap.py    # ROUGE, BLEU, METEOR, Levenshtein
     ├── semantic.py   # BERTScore, BLEURT, NegBLEURT
+    ├── long_text.py  # windows, sentences, and chunks for notes past 512 tokens
     ├── clinical_bertscore.py
     ├── models.py     # loading, devices, settings for model metrics
     ├── note_format.py

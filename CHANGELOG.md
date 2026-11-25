@@ -22,6 +22,12 @@ break interfaces.
 - `scripts/setup_berta.sh` installs Berta's environment and links the models on
   Linux and macOS, and `experiments/primock57/berta_smoke.toml` and
   `berta_full.toml` run PriMock57 with Scribnic's metrics.
+- `long_text` setting for notes past 512 tokens: `window` for `bertscore`, after
+  MedBERTScore-SP; `sentences`, SMART-1's sentence matching, and `chunks`,
+  AlignScore's aggregation, for `bleurt` and `negbleurt`. `truncate` stays the
+  default. The manifest records the strategy, and `batch_size` is now a setting of
+  both BLEURT metrics.
+- `scribe-eval compare` warns when runs scored a metric with different settings.
 
 ### Changed
 
