@@ -21,8 +21,8 @@ metric or a whole group. Nothing here measures clinical safety yet.
 | `note_reference` | `meteor` | `note` | `note` | Mean |
 | `note_reference` | `levenshtein` | `note` | `note` | Mean, per character |
 | `note_semantic` | `bertscore` | `note` | `note` | Mean, with precision and recall |
-| `note_semantic` | `bleurt` | `note` | `note` | Mean |
-| `note_semantic` | `negbleurt` | `note` | `note` | Mean |
+| `note_semantic` | `bleurt` | `note` | `note` | Mean; precision and recall with `sentences` |
+| `note_semantic` | `negbleurt` | `note` | `note` | Mean; precision and recall with `sentences` |
 | `link_correct` | `link`, `correct` | `note` | `note` | Mean |
 | `note_grounding` | `grounding` | `note` | `transcript` | Mean, pooled |
 | `resources` | `elapsed_seconds` | — | — | Mean, p95 |
@@ -166,18 +166,22 @@ for instance to shared storage on a cluster, and `HF_HUB_OFFLINE=1` on nodes wit
 internet once it's filled. `device = "auto"` picks CUDA, then Apple MPS, then CPU.
 
 Defaults reproduce each paper; `[metric_settings]` changes them per experiment, and
-`manifest.json` records the effective model, layer, and package version.
+`manifest.json` records the effective model, layer, long-text strategy, and package
+version.
 
 ```toml
 [metric_settings.bertscore]
 model = "microsoft/deberta-xlarge-mnli"  # default: roberta-large in English
 device = "cuda"
+long_text = "window"                       # default: truncate; see Long notes
 
 [metric_settings.bleurt]
 checkpoint = "lucadiliello/BLEURT-20-D12"  # default: BLEURT-20, about 2 GB
+batch_size = 32                            # pairs per forward pass; default 16
 
 [metric_settings.negbleurt]
 checkpoint = "/shared/models/NegBLEURT"    # default: tum-nlp/NegBLEURT, 17 MB
+long_text = "sentences"
 
 [metric_settings.clinical_bertscore]
 medical_weight = 0.4                       # the paper's tuned k
@@ -191,8 +195,9 @@ terms = "~/terms/medical_terms_es.txt"     # one term per line
 | `negbleurt` | `tum-nlp/NegBLEURT`, English only | [Anschütz et al. 2023](https://aclanthology.org/2023.inlg-main.12/). The authors' checkpoint, loaded with `transformers` as their [model card](https://huggingface.co/tum-nlp/NegBLEURT) and [code](https://github.com/MiriUll/negation_aware_evaluation) do. Weights CC BY-SA 4.0. Adapted below |
 | `clinical_bertscore` | BERTScore's model, k = 0.4, MedWER's term list | [Shor et al. 2023](https://arxiv.org/abs/2303.05737), adapted below |
 
-Inputs past 512 tokens are truncated, and `truncated` counts them. Generated notes
-can reach that; transcripts always would, hence the split below.
+By default, inputs past 512 tokens are truncated, and `truncated` counts them.
+Generated notes can reach that, and [Long notes](#long-notes) lists the
+alternatives. Transcripts always would, hence Clinical BERTScore's split below.
 
 **NegBLEURT** is BLEURT-tiny fine-tuned to score a negated statement low. The authors
 trained it on CANNOT-WMT: 62K English sentence pairs, 88% from their CANNOT dataset,
@@ -200,15 +205,17 @@ labeled 0 when one sentence negates the other and 1 when it paraphrases it, and 
 WMT ratings. Its output is unbounded but mostly falls between 0 and 1. The reference
 goes first in the pair, as in their code.
 
-- **Whole notes, not sentences.** The paper scored sentence pairs. Here a note and its
-  reference are one pair, so the paper's scale doesn't carry over. On a synthetic
+- **Whole notes by default.** The paper scored sentence pairs. By default a note and
+  its reference are one pair, so the paper's scale doesn't carry over. On a synthetic
   12-sentence SOAP note, 261 tokens as a pair, the identical note scored 0.62,
   flipping "denies chest pain" to "reports chest pain" 0.47, and dropping that
   sentence 0.39. One case, but enough to not read a whole-note score as a negation
-  detector. Compare it between runs, not with the paper.
+  detector. Compare it between runs, not with the paper. `long_text = "sentences"`
+  scores sentence pairs instead; see [Long notes](#long-notes), where it doesn't
+  separate a flip from a drop either.
 - **Truncation.** Pairs past 512 tokens, the length BLEURT-tiny was trained with, are
   cut. The longer text loses tokens first, as in BLEURT. The checkpoint's tokenizer
-  sets no limit, so `max_length` does.
+  sets no limit, so `max_length` does, for each sentence pair too.
 - **English only,** like the model. Other languages are `n/a`, with the reason, and
   need no extra.
 
@@ -236,6 +243,141 @@ The paper's clinician preferences (CTP) are public, so the adaptation can be che
 against its reported agreement. Not done yet.
 
 The `bertscore_global` detail is plain BERTScore over the same utterance pairs.
+
+## Long notes
+
+The default models read 512 tokens: BERTScore per text, BLEURT and NegBLEURT per
+pair. On a 53-note PriMock57 run, BLEURT and NegBLEURT cut 7 pairs and BERTScore up
+to 6, and a 2,674-word note stuck in a loop was scored on its opening only.
+`long_text` in `[metric_settings.<metric>]` sets what happens past the limit. Each
+metric takes only the strategies that suit its model; another value fails when the
+experiment loads.
+
+| `long_text` | Metrics | What it does | From |
+| --- | --- | --- | --- |
+| `truncate` | `bertscore`, `bleurt`, `negbleurt` | Scores what fits; `truncated` counts cut pairs. The default, so earlier results stay comparable | — |
+| `window` | `bertscore` | Embeds a text past the limit in 512-token windows overlapping by 100 tokens, then matches tokens over the whole text. Pairs that fit score as with `truncate` | MedBERTScore-SP: [Ben Abacha et al., Findings of ACL 2023](https://aclanthology.org/2023.findings-acl.161/) |
+| `sentences` | `bleurt`, `negbleurt` | Scores every reference sentence against every generated one. Precision averages each generated sentence's best match, recall each reference sentence's; the value is their F1 | SMART-1: [Amplayo et al., ICLR 2023](https://arxiv.org/abs/2208.01030) |
+| `chunks` | `bleurt` | Scores each generated sentence against reference chunks of about 350 words, keeps its best chunk, and averages. AlignScore's aggregation with BLEURT as the scorer: an adaptation | [Zha et al., ACL 2023](https://arxiv.org/abs/2305.16739) |
+| `sections` | — | Pending, below | ACI-BENCH, MEDIQA-Chat |
+
+`window` changes only pairs past the limit. `sentences` and `chunks` change every
+note's score, and `chunks` measures precision only, so neither compares with
+`truncate`. `manifest.json` records the strategy and its parameters, and
+`scribe-eval compare` warns when runs used different ones.
+
+Aggregates keep `truncated`. It's 0 with `window`; with `sentences` and `chunks` it
+counts notes where a sentence or chunk pair still passed the limit. `windowed` counts
+BERTScore pairs that needed windows, and `pairs` totals the pairs scored. Each pair is
+a model call: 74 generated sentences against 74 reference ones make 5,476.
+
+**Window.** It follows the paper: segments of at most 512 tokens, overlapping by 100,
+embedded independently and concatenated, then BERTScore's greedy matching over the
+whole text. The [authors' code](https://github.com/abachaa/EvaluationMetrics-ACL23)
+has no license, so it was read, not copied. Differences from it:
+
+- Their code drops the 100 overlapping tokens from each later window before embedding
+  it, so each window holds 412 new tokens with no shared context, and only the text's
+  ends carry special tokens. Here each window is a complete input, the overlap is read
+  as context, and a token keeps the embedding from the first window that holds it.
+- Their code windows every text in a batch once the padded batch passes 512 tokens,
+  so a short text batched with a long one is split too. Here only a text past the
+  limit is.
+- Their code uses `deberta-xlarge-mnli` whatever model is asked for. Here it's the
+  metric's model, `roberta-large` by default.
+- MedBERTScore also gives medical terms, found with MedCAT, more weight. Not here.
+
+In the paper's tables, MedBERTScore-SP correlates with human judgments within 0.01 of
+MedBERTScore-P on every dataset, so windows read past 512 tokens without a shown gain.
+Checked on CPU with `roberta-large`: on a pair that fits, the windowed path matches
+`bert-score` to 1.2e-7.
+
+**Sentences.** SMART scores texts with sentences as units and any sentence-pair
+scorer, BLEURT among those it tested. As in
+[its code](https://github.com/google-research/google-research/tree/master/smart_eval)
+for BLEURT, one matrix of scores, reference sentence first, serves both directions.
+Its precision is also SummaC-ZS's max-then-mean
+([Laban et al., TACL 2022](https://arxiv.org/abs/2111.09525)). Differences:
+
+- SMART also matches against the source document and keeps the higher score. Here
+  only the reference note counts.
+- Notes are split at line breaks, then with NLTK's Punkt. Headings and list items
+  lack final punctuation, and Punkt alone, as SMART uses it, would merge them.
+- Only SMART-1, not SMART-2 or SMART-L.
+
+For NegBLEURT, sentence pairs are what it was trained on.
+
+**Chunks.** AlignScore splits its context into chunks of whole sentences:
+`words // 350 + 1` of them, with the same number of sentences each. Its code counts
+words on whitespace, where the paper says tokens; this follows the code. Each claim
+sentence keeps its best chunk, and the claims average. Here the reference is the
+context and the generated note the claims, so a note that leaves out half the
+reference can still score high. A chunk and a sentence can still pass 512 tokens,
+and `truncated` counts those notes. NegBLEURT doesn't take `chunks`: in the check
+below it scored chunk pairs around −0.35, below its usual 0 to 1, for faithful and
+wrong notes alike.
+
+**Clinical BERTScore** takes no `long_text`. It already scores each reference
+utterance with the predicted words aligned to it, so windows add nothing. It doesn't
+count truncation; an utterance pair past 512 tokens would be cut, which hasn't been
+checked.
+
+**Sections.** ACI-BENCH and MEDIQA-Chat score each division of a note on its own.
+That needs section detection (#10, #42), which doesn't exist yet. With it, `sections`
+would be one more `long_text` value for all three metrics.
+
+**Repetition** isn't penalized by design: each piece is matched to its best
+counterpart, so a repeated sentence can match again. In the check below, a looping
+note raised NegBLEURT's precision and lowered windowed BERTScore's, so neither is a
+repetition measure.
+
+**Other languages.**
+
+- Sentences are split with Punkt's model for the dataset's language. NLTK has 19,
+  Spanish among them; another language fails validation with `sentences` or `chunks`.
+  The models download on first use into `nltk_data`; `NLTK_DATA` moves them.
+- `window` works with any model BERTScore loads, such as multilingual BERT, its
+  default outside English. BLEURT-20 builds on multilingual RemBERT. NegBLEURT is
+  English only.
+- Unverified: Punkt on Spanish notes, and every strategy outside English. None has
+  been compared with human judgments in any language.
+
+**Check.** A synthetic 502-word English note, 745 RoBERTa tokens, with each section on
+its own lines, against four versions of it, on CPU:
+
+- *generated*: five sentences paraphrased.
+- *cut*: its first six sections, 198 words.
+- *looping*: *cut* followed by the medication list 40 more times, 1,278 words.
+- *tail errors*: *generated* with four errors after token 595: a tenth of the dose,
+  amoxicillin despite a penicillin allergy, doubled metformin, and no 999 call for
+  chest pain.
+
+| Metric | `long_text` | generated | cut | looping | tail errors |
+| --- | --- | --- | --- | --- | --- |
+| `bertscore` | `truncate` | 0.987 | 0.947 | 0.910 | 0.987 |
+| `bertscore` | `window` | 0.988 | 0.934 | 0.865 | 0.986 |
+| `bleurt` | `truncate` | 0.801 | 0.801 | 0.801 | 0.801 |
+| `negbleurt` | `truncate` | 0.283 | 0.283 | 0.340 | 0.283 |
+| `negbleurt` | `sentences` | 0.859 | 0.676 | 0.688 | 0.843 |
+
+- With `truncate`, BLEURT scored all four the same: a pair keeps about half its 512
+  tokens from each note, and all four open alike. No metric saw the tail errors with
+  `truncate`.
+- Split notes tell *cut* and *looping* from *generated* through recall: 0.56 against
+  0.86 for NegBLEURT. *Looping* raised its precision, 0.90 against 0.86.
+- The tail errors cost NegBLEURT 0.017 and windowed BERTScore 0.002. Four wrong
+  sentences in 74 barely move a mean; none of these detects errors.
+
+NegBLEURT on another synthetic note, 12 sentences: identical, "denies chest pain"
+flipped to "reports chest pain", and that sentence dropped.
+
+| `long_text` | identical | flipped | dropped |
+| --- | --- | --- | --- |
+| `truncate` | 0.634 | 0.474 | 0.530 |
+| `sentences` | 0.920 | 0.897 | 0.897 |
+
+With `sentences`, the flipped sentence's best match was another reference sentence,
+not the one it negates, so a flip cost what a missing sentence did. One case each.
 
 ## ROUGE is a diagnostic
 
@@ -298,7 +440,7 @@ Published metrics first; anything adapted says so.
 | Judge | The 13 dimensions, in both modes | Validated local LLM | ADS_evaluation |
 | Omissions | Facts the transcript establishes, graded by severity, each checked against the note; flag a note missing a critical one | A judge | [OmissionBench](https://arxiv.org/abs/2608.31016); MED-OMIT |
 | Facts | Coverage, omission, contradiction against the reference note, then unmatched facts checked against the transcript | A judge | [Latif et al. 2026](https://proceedings.mlr.press/v333/latif26a.html) |
-| Sections | Reference-based metrics per section, as ACI-BENCH scores its four divisions | Section detection, as ACI-BENCH does with regular expressions | ACI-BENCH, CliniKnote |
+| Sections | Reference-based metrics per section, as ACI-BENCH scores its four divisions; also `long_text = "sections"` for the model metrics | Section detection, as ACI-BENCH does with regular expressions | ACI-BENCH, CliniKnote |
 | ASR severity | Medication, dose, and consistency errors graded none, minor, or major | A judge | TEME, AAMAS 2026 |
 
 ## Validating judges

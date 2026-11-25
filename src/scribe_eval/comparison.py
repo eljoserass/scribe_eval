@@ -103,7 +103,8 @@ def _warnings(runs: Sequence[RunRecord]) -> list[str]:
     """List what differs between runs in ways that bias a comparison.
 
     Runs that are unfinished, scored different samples or data versions, or used a
-    different version of a metric can still be shown, but not read as like for like.
+    different version or settings of a metric can still be shown, but not read as
+    like for like.
     """
     warnings = []
     for run in runs:
@@ -121,6 +122,10 @@ def _warnings(runs: Sequence[RunRecord]) -> list[str]:
             warnings.append(f"{name}: runs fed the pipeline different inputs.")
         for metric in _metrics_with_several_versions(recorded):
             warnings.append(f"{name}: metric {metric!r} changed version.")
+        for metric, keys in _metrics_with_different_settings(recorded).items():
+            warnings.append(
+                f"{name}: metric {metric!r} used different {', '.join(keys)}."
+            )
     return warnings
 
 
@@ -142,3 +147,30 @@ def _metrics_with_several_versions(recorded: Sequence[dict]) -> list[str]:
         for metric, version in data.get("metrics", {}).items():
             versions.setdefault(metric, set()).add(version)
     return sorted(metric for metric, seen in versions.items() if len(seen) > 1)
+
+
+def _metrics_with_different_settings(recorded: Sequence[dict]) -> dict[str, list[str]]:
+    """Settings that differ across runs, by metric, such as model or `long_text`.
+
+    Only settings every run recorded are compared: older manifests recorded fewer,
+    and a run that didn't score a metric recorded none for it.
+
+    Returns:
+        The differing setting names, sorted, for each metric that has any.
+    """
+    collected: dict[str, list[dict]] = {}
+    for data in recorded:
+        for metric, settings in data.get("metric_settings", {}).items():
+            collected.setdefault(metric, []).append(settings)
+
+    differences = {}
+    for metric, entries in sorted(collected.items()):
+        if len(entries) < len(recorded):
+            continue
+        shared = set.intersection(*(set(entry) for entry in entries))
+        keys = sorted(
+            key for key in shared if len({repr(entry[key]) for entry in entries}) > 1
+        )
+        if keys:
+            differences[metric] = keys
+    return differences

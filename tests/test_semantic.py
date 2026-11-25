@@ -19,11 +19,19 @@ from scribe_eval.metrics.clinical_bertscore import (
     medical_words,
     split_by_reference,
 )
-from scribe_eval.metrics.semantic import NegBleurt, _regression_score
+from scribe_eval.metrics.semantic import (
+    BertScore,
+    Bleurt,
+    NegBleurt,
+    _regression_scores,
+    _window_embedding,
+    _windowed_bertscore,
+)
 from scribe_eval.types import Sample, Score
 from scribe_eval.validation import plan_dataset
 
 from .helpers import FakePipeline, write_tiny_dataset
+from .test_long_text import fake_punkt
 from .test_metrics import prediction, sample
 
 
@@ -144,8 +152,8 @@ class NegBleurtTests(unittest.TestCase):
         with (
             patch.object(NegBleurt, "_model", return_value=(None, None, "cpu")),
             patch(
-                "scribe_eval.metrics.semantic._regression_score",
-                return_value=(0.25, True),
+                "scribe_eval.metrics.semantic._regression_scores",
+                return_value=([0.25], 1),
             ) as regression,
         ):
             score = METRICS["negbleurt"].score(predicted, expected)
@@ -174,10 +182,9 @@ class NegBleurtTests(unittest.TestCase):
     def test_reference_goes_first_and_truncation_is_recorded(self):
         score, regression = self.score()
         self.assertEqual(score, Score("negbleurt", 0.25, {"truncated": 1.0}))
-        arguments = regression.call_args.kwargs
-        self.assertEqual(arguments["reference"], "no fever")
-        self.assertEqual(arguments["candidate"], "fever")
-        self.assertEqual(arguments["max_length"], 512)
+        model, tokenizer, device, references, candidates = regression.call_args.args
+        self.assertEqual((references, candidates), (["no fever"], ["fever"]))
+        self.assertEqual(regression.call_args.kwargs["max_length"], 512)
 
     def test_other_languages_score_nothing_and_load_nothing(self):
         score, regression = self.score(language="es")
@@ -212,47 +219,330 @@ class _FakeTokenizer:
 
     def __init__(self) -> None:
         """Remember nothing until called."""
-        self.batch_arguments: dict[str, object] = {}
+        self.padded_calls: list[dict[str, object]] = []
 
-    def __call__(self, reference, candidate, **arguments) -> _FakeEncoding:
-        """Encode a pair; record the settings of the batched call."""
-        if isinstance(reference, list):
-            self.batch_arguments = arguments
-            return _FakeEncoding()
-        length = len(reference.split()) + len(candidate.split()) + 3
-        return _FakeEncoding(input_ids=list(range(length)))
+    def __call__(self, references, candidates, **arguments) -> _FakeEncoding:
+        """Encode pairs; record the settings of calls that pad for the model."""
+        ids = [
+            list(range(len(reference.split()) + len(candidate.split()) + 3))
+            for reference, candidate in zip(references, candidates, strict=True)
+        ]
+        if "padding" in arguments:
+            self.padded_calls.append(arguments)
+        return _FakeEncoding(input_ids=ids)
 
 
 @unittest.skipUnless(find_spec("torch"), "needs the semantic extra")
 class RegressionScoreTests(unittest.TestCase):
-    def run_pair(self, *, max_length: int):
-        """Score a six-token pair with a model that always outputs 0.5."""
+    def run_pairs(self, *, max_length: int):
+        """Score a six- and a seven-token pair, one per batch."""
         tokenizer = _FakeTokenizer()
 
-        def model(**inputs):
-            """Return a single regression output."""
-            return SimpleNamespace(logits=numpy.array([[0.5]]))
+        def model(input_ids):
+            """Output a tenth of each pair's length, to check the order."""
+            return SimpleNamespace(
+                logits=numpy.array([[len(ids) / 10] for ids in input_ids])
+            )
 
-        result = _regression_score(
+        result = _regression_scores(
             model,
             tokenizer,
             "cpu",
-            reference="no fever",
-            candidate="ok",
+            ["no fever", "cough"],
+            ["ok", "a dry cough"],
             max_length=max_length,
+            batch_size=1,
         )
-        return result, tokenizer.batch_arguments
+        return result, tokenizer.padded_calls
 
-    def test_pair_within_the_limit_is_not_truncated(self):
-        (value, truncated), _ = self.run_pair(max_length=6)
-        self.assertEqual(value, 0.5)
-        self.assertFalse(truncated)
+    def test_pairs_within_the_limit_are_scored_in_order(self):
+        (values, truncated), calls = self.run_pairs(max_length=7)
+        self.assertEqual(values, [0.6, 0.7])
+        self.assertEqual(truncated, 0)
+        self.assertEqual(len(calls), 2)
 
-    def test_pair_past_the_limit_is_truncated_and_flagged(self):
-        (_, truncated), arguments = self.run_pair(max_length=5)
-        self.assertTrue(truncated)
-        self.assertIs(arguments["truncation"], True)
-        self.assertEqual(arguments["max_length"], 5)
+    def test_pairs_past_the_limit_are_truncated_and_counted(self):
+        (_, truncated), calls = self.run_pairs(max_length=6)
+        self.assertEqual(truncated, 1)
+        self.assertIs(calls[0]["truncation"], True)
+        self.assertEqual(calls[0]["max_length"], 6)
+
+
+class LongTextSettingsTests(unittest.TestCase):
+    def test_every_metric_truncates_by_default(self):
+        for name in ("bertscore", "bleurt", "negbleurt"):
+            self.assertEqual(METRICS[name].long_text, "truncate")
+
+    def test_each_family_takes_its_own_strategies(self):
+        metrics = configure_metrics(
+            {
+                "bertscore": {"long_text": "window"},
+                "bleurt": {"long_text": "chunks"},
+                "negbleurt": {"long_text": "sentences"},
+            },
+            judge=None,
+        )
+        self.assertEqual(metrics["bertscore"].long_text, "window")
+        self.assertEqual(metrics["bleurt"].long_text, "chunks")
+        self.assertEqual(metrics["negbleurt"].long_text, "sentences")
+
+    def test_bertscore_rejects_sentences(self):
+        with self.assertRaisesRegex(
+            ValueError, "'bertscore' takes long_text = 'truncate', 'window'"
+        ):
+            configure_metrics({"bertscore": {"long_text": "sentences"}}, judge=None)
+
+    def test_bleurt_rejects_windows(self):
+        with self.assertRaisesRegex(ValueError, "not 'window'"):
+            configure_metrics({"bleurt": {"long_text": "window"}}, judge=None)
+
+    def test_negbleurt_rejects_chunks(self):
+        with self.assertRaisesRegex(
+            ValueError, "'negbleurt' takes long_text = 'truncate', 'sentences'"
+        ):
+            configure_metrics({"negbleurt": {"long_text": "chunks"}}, judge=None)
+
+    def test_clinical_bertscore_takes_no_strategy(self):
+        with self.assertRaisesRegex(ValueError, "Unknown settings.*long_text"):
+            configure_metrics(
+                {"clinical_bertscore": {"long_text": "window"}}, judge=None
+            )
+
+    def describe(self, metric, language: str = "en") -> dict[str, object]:
+        """Describe a metric without the semantic extra installed."""
+        with (
+            patch("scribe_eval.metrics.semantic.require_semantic"),
+            patch("scribe_eval.metrics.semantic.version", return_value="0"),
+        ):
+            return metric.describe(language)
+
+    def test_the_manifest_records_the_strategy_and_its_parameters(self):
+        chunks = self.describe(Bleurt(long_text="chunks"))
+        self.assertEqual(chunks["long_text"], "chunks")
+        self.assertEqual(chunks["punkt"], "english")
+        self.assertEqual(chunks["chunk_words"], 350)
+        truncate = self.describe(NegBleurt())
+        self.assertEqual(truncate["long_text"], "truncate")
+        self.assertNotIn("punkt", truncate)
+
+    def test_splitting_a_language_without_punkt_fails_validation(self):
+        with self.assertRaisesRegex(ValueError, "no model for 'eu'"):
+            self.describe(Bleurt(long_text="sentences"), "eu")
+
+
+class BleurtStrategyTests(unittest.TestCase):
+    def score(self, long_text: str, *, truncated: int = 0):
+        """Score with a fake model: 1 when the generated sentence is in the piece."""
+        calls = []
+
+        def fake_scores(model, tokenizer, device, references, candidates, **_):
+            """Record the pairs and score them."""
+            calls.append((list(references), list(candidates)))
+            values = [
+                float(candidate in reference)
+                for reference, candidate in zip(references, candidates, strict=True)
+            ]
+            return values, truncated
+
+        metric = Bleurt(long_text=long_text)
+        with (
+            patch.object(Bleurt, "_model", return_value=(None, None, "cpu")),
+            patch(
+                "scribe_eval.metrics.semantic._regression_scores",
+                side_effect=fake_scores,
+            ),
+            patch("scribe_eval.metrics.long_text._ensure_punkt"),
+            patch(
+                "scribe_eval.metrics.long_text.sent_tokenize", side_effect=fake_punkt
+            ),
+        ):
+            score = metric.score(
+                prediction(note=Note("Fever. Cough.")),
+                sample(note=Note("Fever. Rash. Pain.")),
+            )
+        return score, calls
+
+    def test_truncate_scores_the_notes_as_one_pair(self):
+        score, calls = self.score("truncate")
+        self.assertEqual(calls, [(["Fever. Rash. Pain."], ["Fever. Cough."])])
+        self.assertEqual(score.details, {"truncated": 0.0})
+
+    def test_sentences_pairs_every_sentence_and_reports_smart_1(self):
+        score, calls = self.score("sentences")
+        references, candidates = calls[0]
+        self.assertEqual(references[:3], ["Fever.", "Fever.", "Rash."])
+        self.assertEqual(candidates[:3], ["Fever.", "Cough.", "Fever."])
+        self.assertAlmostEqual(score.details["precision"], 0.5)
+        self.assertAlmostEqual(score.details["recall"], 1 / 3)
+        self.assertAlmostEqual(score.value, 0.4)
+        self.assertEqual(score.details["pairs"], 6)
+        self.assertEqual(score.details["truncated"], 0)
+
+    def test_chunks_keep_each_sentence_best_chunk(self):
+        score, calls = self.score("chunks")
+        self.assertEqual(calls[0][0], ["Fever. Rash. Pain.", "Fever. Rash. Pain."])
+        self.assertAlmostEqual(score.value, 0.5)
+        self.assertEqual(score.details, {"truncated": 0.0, "pairs": 2.0})
+
+    def test_a_truncated_pair_flags_the_note(self):
+        score, _ = self.score("sentences", truncated=3)
+        self.assertEqual(score.details["truncated"], 1.0)
+
+    def test_aggregate_reports_precision_recall_and_pairs(self):
+        score, _ = self.score("sentences")
+        result = Bleurt(long_text="sentences").aggregate([score, score])
+        self.assertAlmostEqual(result["mean"], 0.4)
+        self.assertAlmostEqual(result["recall"], 1 / 3)
+        self.assertEqual(result["pairs"], 12)
+        self.assertEqual(result["truncated"], 0)
+
+
+class _FakeScorer:
+    """Stands in for BERTScorer, with fixed precision, recall, and F1."""
+
+    def score(self, candidates, references, batch_size):
+        """Return 0.9, 0.8, and 0.85 for the single pair."""
+        return [0.9], [0.8], [0.85]
+
+
+class BertScoreWindowTests(unittest.TestCase):
+    def score(self, long_text: str, candidate: str):
+        """Score against a two-word reference, with a limit of six tokens."""
+        tokenizer = SimpleNamespace(
+            model_max_length=6, num_special_tokens_to_add=lambda: 2
+        )
+        metric = BertScore(long_text=long_text)
+        with (
+            patch.object(BertScore, "_scorer", return_value=(_FakeScorer(), tokenizer)),
+            patch(
+                "scribe_eval.metrics.semantic._bertscore_ids",
+                side_effect=lambda tokenizer, text: list(range(len(text.split()))),
+            ),
+            patch(
+                "scribe_eval.metrics.semantic._windowed_bertscore",
+                return_value=(0.7, 0.6, 0.65),
+            ) as windowed,
+        ):
+            score = metric.score(
+                prediction(note=Note(candidate)), sample(note=Note("no fever"))
+            )
+        return score, windowed
+
+    def test_truncate_flags_a_long_note(self):
+        score, windowed = self.score("truncate", "one two three four five")
+        windowed.assert_not_called()
+        self.assertEqual(score.value, 0.85)
+        self.assertEqual(score.details["truncated"], 1.0)
+        self.assertNotIn("windowed", score.details)
+
+    def test_window_embeds_a_long_note_in_windows(self):
+        score, windowed = self.score("window", "one two three four five")
+        self.assertEqual(len(windowed.call_args.kwargs["candidate_ids"]), 5)
+        self.assertEqual(score.value, 0.65)
+        self.assertEqual(
+            score.details,
+            {"precision": 0.7, "recall": 0.6, "truncated": 0.0, "windowed": 1.0},
+        )
+
+    def test_window_leaves_a_pair_that_fits_to_the_package(self):
+        score, windowed = self.score("window", "no fever today")
+        windowed.assert_not_called()
+        self.assertEqual(score.value, 0.85)
+        self.assertEqual(score.details["windowed"], 0.0)
+
+    def test_aggregate_counts_windowed_pairs(self):
+        long_score, _ = self.score("window", "one two three four five")
+        short_score, _ = self.score("window", "no fever today")
+        result = BertScore(long_text="window").aggregate([long_score, short_score])
+        self.assertEqual(result["windowed"], 1)
+        self.assertEqual(result["truncated"], 0)
+
+
+class _WindowTokenizer:
+    """BERT-like: 112-token inputs, wrapped in IDs 101 and 102."""
+
+    model_max_length = 112
+    pad_token_id = 0
+    cls_token_id = 101
+    sep_token_id = 102
+
+    def num_special_tokens_to_add(self) -> int:
+        """Two special tokens per text."""
+        return 2
+
+    def build_inputs_with_special_tokens(self, ids: list[int]) -> list[int]:
+        """Wrap the tokens."""
+        return [101, *ids, 102]
+
+    def get_special_tokens_mask(self, ids: list[int]) -> list[int]:
+        """Mark the wrapping tokens."""
+        return [1] + [0] * len(ids) + [1]
+
+
+class _PositionModel:
+    """Embeds each token as its ID and its position in the window."""
+
+    def __init__(self) -> None:
+        """Record batch sizes as they come."""
+        self.batches: list[int] = []
+
+    def eval(self) -> "_PositionModel":
+        """Do nothing; there is no training mode."""
+        return self
+
+    def __call__(self, input_ids, attention_mask=None, output_hidden_states=False):
+        """Return embeddings of shape (batch, tokens, 2)."""
+        import torch
+
+        self.batches.append(input_ids.shape[0])
+        positions = torch.arange(input_ids.shape[1]).expand_as(input_ids)
+        return (torch.stack([input_ids.float(), positions.float()], dim=-1),)
+
+
+@unittest.skipUnless(find_spec("bert_score"), "needs the semantic extra")
+class WindowEmbeddingTests(unittest.TestCase):
+    def embed(self, length: int):
+        """Embed `length` tokens in windows of 110 overlapping by 100."""
+        model = _PositionModel()
+        embedding, ids = _window_embedding(
+            list(range(1000, 1000 + length)),
+            model=model,
+            tokenizer=_WindowTokenizer(),
+            device="cpu",
+            batch_size=2,
+        )
+        return embedding, ids, model
+
+    def test_a_text_that_fits_is_one_input(self):
+        embedding, ids, model = self.embed(10)
+        self.assertEqual(ids, [101, *range(1000, 1010), 102])
+        self.assertEqual(embedding[:, 1].tolist(), [float(i) for i in range(12)])
+        self.assertEqual(model.batches, [1])
+
+    def test_each_token_comes_once_from_the_first_window_holding_it(self):
+        embedding, ids, model = self.embed(130)
+        # Windows hold tokens 0-109, 10-119, and 20-129.
+        self.assertEqual(ids, [101, *range(1000, 1130), 102])
+        self.assertEqual(embedding[:, 0].tolist(), [float(i) for i in ids])
+        self.assertEqual(embedding[1 + 50, 1].item(), 1 + 50)
+        self.assertEqual(embedding[1 + 115, 1].item(), 1 + 115 - 10)
+        self.assertEqual(embedding[-1, 1].item(), 1 + 130 - 20)
+        self.assertEqual(model.batches, [2, 1])
+
+    def test_identical_long_texts_match_fully(self):
+        scorer = SimpleNamespace(
+            _model=_PositionModel(), device="cpu", rescale_with_baseline=False
+        )
+        ids = list(range(1000, 1300))
+        values = _windowed_bertscore(
+            scorer,
+            _WindowTokenizer(),
+            candidate_ids=ids,
+            reference_ids=ids,
+            batch_size=4,
+        )
+        for value in values:
+            self.assertAlmostEqual(value, 1.0, places=5)
 
 
 class ClinicalWeightingTests(unittest.TestCase):

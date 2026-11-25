@@ -114,7 +114,8 @@ A run whose process died shows as `stale`. Each run also keeps its predictions,
 artifacts, telemetry, and status in its directory.
 
 To compare pipelines or workflows, compare their runs. The table puts coverage and
-failures first, and warns when runs scored different samples or metric versions:
+failures first, and warns when runs scored different samples, metric versions, or
+metric settings:
 
 ```bash
 uv run scribe-eval compare runs/<run-a> runs/<run-b>
