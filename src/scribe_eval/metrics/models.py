@@ -1,6 +1,6 @@
-"""Shared pieces for metrics that run a neural model.
+"""Shared pieces for metrics that run a neural model, and settings for any metric.
 
-These metrics need the `semantic` extra. Weights download from Hugging Face on first
+Model metrics need the `semantic` extra. Weights download from Hugging Face on first
 use and stay in its cache, so `HF_HOME` and `HF_HUB_OFFLINE` apply as usual.
 """
 

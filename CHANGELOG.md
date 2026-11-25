@@ -22,6 +22,10 @@ break interfaces.
 - `scripts/setup_berta.sh` installs Berta's environment and links the models on
   Linux and macOS, and `experiments/primock57/berta_smoke.toml` and
   `berta_full.toml` run PriMock57 with Scribnic's metrics.
+- Repetition metrics, without a reference or a model: `seq_rep`, Welleck et al.'s
+  seq-rep-n with n = 4, and `repeated_lines` in `note_format`, and
+  `transcript_seq_rep` in `transcription`. They report the mean and max, and with a
+  `threshold` setting, how many samples exceed it.
 
 ### Changed
 

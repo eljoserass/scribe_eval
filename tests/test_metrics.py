@@ -3,7 +3,7 @@
 import unittest
 
 from scribe_eval.artifacts import DiarizedTranscript, Note, Segment, Transcript
-from scribe_eval.metrics import METRICS, resolve_metrics
+from scribe_eval.metrics import METRICS, configure_metrics, resolve_metrics
 from scribe_eval.metrics.text import normalize_text
 from scribe_eval.telemetry import ModelUsage, Phase, ProcessUsage, SampleTelemetry
 from scribe_eval.types import Prediction, Sample, Score
@@ -226,6 +226,82 @@ class NoteQualityTests(unittest.TestCase):
             sample(),
         )
         self.assertGreater(easy.value, hard.value)
+
+
+class RepetitionTests(unittest.TestCase):
+    NORMAL = (
+        "S: Two days of sore throat and fever.\n"
+        "O: Temperature 38.2, red tonsils, no exudate.\n"
+        "A: Probable viral pharyngitis.\n"
+        "P: Paracetamol, fluids, and review if not better in a week."
+    )
+    LOOP = "P: Paracetamol 1 g four times a day.\n" + (
+        "- Review in one week if symptoms persist.\n" * 30
+    )
+
+    def score(self, name: str, text: str) -> Score | None:
+        """Score a note with a registered metric's defaults."""
+        return METRICS[name].score(prediction(note=Note(text)), sample())
+
+    def test_a_looping_note_scores_high(self):
+        self.assertGreater(self.score("seq_rep", self.LOOP).value, 0.9)
+        self.assertAlmostEqual(self.score("repeated_lines", self.LOOP).value, 30 / 31)
+
+    def test_a_normal_note_scores_zero(self):
+        self.assertEqual(self.score("seq_rep", self.NORMAL).value, 0.0)
+        self.assertEqual(self.score("repeated_lines", self.NORMAL).value, 0.0)
+
+    def test_seq_rep_counts_repeated_ngrams_after_normalization(self):
+        # Five 4-grams, four of them unique; case and punctuation don't matter.
+        score = self.score("seq_rep", "Rest and fluids daily. rest, and FLUIDS daily")
+        self.assertAlmostEqual(score.value, 1 / 5)
+        self.assertEqual(score.details["ngrams"], 5)
+
+    def test_lines_compare_without_case_or_spacing(self):
+        score = self.score("repeated_lines", "Plan: rest\n  plan:   REST\n\nCough")
+        self.assertAlmostEqual(score.value, 2 / 3)
+        self.assertEqual(score.details["lines"], 3)
+
+    def test_texts_too_short_to_measure_get_no_score(self):
+        self.assertIsNone(self.score("seq_rep", ""))
+        self.assertIsNone(self.score("seq_rep", "no chest pain"))
+        self.assertIsNone(self.score("repeated_lines", " \n\n"))
+        self.assertEqual(self.score("repeated_lines", "no chest pain").value, 0.0)
+
+    def test_n_setting_reaches_the_metric(self):
+        metric = configure_metrics({"seq_rep": {"n": 1}}, judge=None)["seq_rep"]
+        score = metric.score(prediction(note=Note("fever fever cough")), sample())
+        self.assertAlmostEqual(score.value, 1 / 3)
+        self.assertEqual(metric.describe("en")["n"], 1)
+
+    def test_bad_settings_fail(self):
+        for settings in ({"n": 0}, {"n": True}, {"n": 2.5}, {"threshold": 2}, {"x": 1}):
+            with self.subTest(settings=settings), self.assertRaises(ValueError):
+                configure_metrics({"seq_rep": settings}, judge=None)
+
+    def test_transcript_variant_reads_the_transcript(self):
+        loop = Transcript.from_text("thank you " * 20)
+        score = METRICS["transcript_seq_rep"].score(
+            prediction(transcript=loop, note=Note(self.NORMAL)), sample()
+        )
+        self.assertGreater(score.value, 0.9)
+
+    def test_aggregate_reports_mean_and_max_and_counts_only_with_a_threshold(self):
+        scores = [Score("seq_rep", 0.0), Score("seq_rep", 0.1), Score("seq_rep", 0.8)]
+        result = METRICS["seq_rep"].aggregate(scores)
+        self.assertAlmostEqual(result["mean"], 0.3)
+        self.assertEqual(result["max"], 0.8)
+        self.assertNotIn("above_threshold", result)
+        settings = {"repeated_lines": {"threshold": 0.1}}
+        metric = configure_metrics(settings, judge=None)["repeated_lines"]
+        self.assertEqual(metric.aggregate(scores)["above_threshold"], 1)
+
+    def test_groups_include_them(self):
+        note = [metric.name for metric in resolve_metrics(["note_format"])]
+        self.assertIn("seq_rep", note)
+        self.assertIn("repeated_lines", note)
+        transcript = [metric.name for metric in resolve_metrics(["transcription"])]
+        self.assertIn("transcript_seq_rep", transcript)
 
 
 class DiarizationTests(unittest.TestCase):

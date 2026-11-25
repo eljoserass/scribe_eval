@@ -10,6 +10,7 @@ from .grounding import Grounding
 from .link_correct import LinkCorrect
 from .note_format import CompressionRatio, FleschReadingEase, NoteWords
 from .overlap import Bleu, Levenshtein, Meteor, Rouge
+from .repetition import RepeatedLines, SequenceRepetition
 from .resources import (
     ElapsedSeconds,
     PeakMemory,
@@ -31,11 +32,14 @@ _ALL: tuple[Metric, ...] = (
     Rouge("transcript_rouge_1", "rouge1", "transcript", "transcription"),
     Rouge("transcript_rouge_l", "rougeL", "transcript", "transcription"),
     Bleu("transcript_bleu", "transcript", "transcription"),
+    SequenceRepetition("transcript_seq_rep", "transcript", "transcription"),
     DiarizationErrorRate(),
     JaccardErrorRate(),
     NoteWords(),
     FleschReadingEase(),
     CompressionRatio(),
+    SequenceRepetition("seq_rep", "note", "note_format"),
+    RepeatedLines(),
     Rouge("rouge_1", "rouge1", "note", "note_reference"),
     Rouge("rouge_2", "rouge2", "note", "note_reference"),
     Rouge("rouge_l", "rougeL", "note", "note_reference"),
