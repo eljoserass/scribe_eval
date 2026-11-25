@@ -248,6 +248,24 @@ def _regression_scores(
     return values, truncated
 
 
+def _score_distinct(
+    score_pairs: _PairScorer, pairs: Sequence[tuple[str, str]]
+) -> tuple[list[float], int]:
+    """Score each distinct (reference, candidate) pair once.
+
+    A looping note repeats its sentences, so it repeats pairs too.
+
+    Returns:
+        One score per pair, in order, and how many distinct pairs were truncated.
+    """
+    distinct = list(dict.fromkeys(pairs))
+    references = [reference for reference, _ in distinct]
+    candidates = [candidate for _, candidate in distinct]
+    values, truncated = score_pairs(references, candidates)
+    by_pair = dict(zip(distinct, values, strict=True))
+    return [by_pair[pair] for pair in pairs], truncated
+
+
 def _regression_note_score(
     score_pairs: _PairScorer,
     *,
@@ -286,13 +304,11 @@ def _regression_note_score(
         pieces = reference_chunks(reference_sentences)
     else:
         pieces = reference_sentences
-    references = []
-    candidates = []
+    pairs = []
     for piece in pieces:
         for sentence in generated:
-            references.append(piece)
-            candidates.append(sentence)
-    values, truncated = score_pairs(references, candidates)
+            pairs.append((piece, sentence))
+    values, truncated = _score_distinct(score_pairs, pairs)
 
     width = len(generated)
     matrix = [values[row : row + width] for row in range(0, len(values), width)]

@@ -331,7 +331,9 @@ class LongTextSettingsTests(unittest.TestCase):
 
 
 class BleurtStrategyTests(unittest.TestCase):
-    def score(self, long_text: str, *, truncated: int = 0):
+    def score(
+        self, long_text: str, *, truncated: int = 0, candidate: str = "Fever. Cough."
+    ):
         """Score with a fake model: 1 when the generated sentence is in the piece."""
         calls = []
 
@@ -357,7 +359,7 @@ class BleurtStrategyTests(unittest.TestCase):
             ),
         ):
             score = metric.score(
-                prediction(note=Note("Fever. Cough.")),
+                prediction(note=Note(candidate)),
                 sample(note=Note("Fever. Rash. Pain.")),
             )
         return score, calls
@@ -383,6 +385,13 @@ class BleurtStrategyTests(unittest.TestCase):
         self.assertEqual(calls[0][0], ["Fever. Rash. Pain.", "Fever. Rash. Pain."])
         self.assertAlmostEqual(score.value, 0.5)
         self.assertEqual(score.details, {"truncated": 0.0, "pairs": 2.0})
+
+    def test_repeated_sentences_are_scored_once(self):
+        score, calls = self.score("sentences", candidate="Fever. Cough. Fever.")
+        references, candidates = calls[0]
+        self.assertEqual(len(references), 6)
+        self.assertEqual(score.details["pairs"], 9)
+        self.assertAlmostEqual(score.details["precision"], 2 / 3)
 
     def test_a_truncated_pair_flags_the_note(self):
         score, _ = self.score("sentences", truncated=3)

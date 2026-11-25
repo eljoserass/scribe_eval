@@ -258,7 +258,7 @@ experiment loads.
 | `truncate` | `bertscore`, `bleurt`, `negbleurt` | Scores what fits; `truncated` counts cut pairs. The default, so earlier results stay comparable | — |
 | `window` | `bertscore` | Embeds a text past the limit in 512-token windows overlapping by 100 tokens, then matches tokens over the whole text. Pairs that fit score as with `truncate` | MedBERTScore-SP: [Ben Abacha et al., Findings of ACL 2023](https://aclanthology.org/2023.findings-acl.161/) |
 | `sentences` | `bleurt`, `negbleurt` | Scores every reference sentence against every generated one. Precision averages each generated sentence's best match, recall each reference sentence's; the value is their F1 | SMART-1: [Amplayo et al., ICLR 2023](https://arxiv.org/abs/2208.01030) |
-| `chunks` | `bleurt` | Scores each generated sentence against reference chunks of about 350 words, keeps its best chunk, and averages. AlignScore's aggregation with BLEURT as the scorer: an adaptation | [Zha et al., ACL 2023](https://arxiv.org/abs/2305.16739) |
+| `chunks` | `bleurt` | Scores each generated sentence against reference chunks of about 350 words, keeps its best chunk, and averages. AlignScore's aggregation with BLEURT as the scorer: an adaptation, flat in the check below | [Zha et al., ACL 2023](https://arxiv.org/abs/2305.16739) |
 | `sections` | — | Pending, below | ACI-BENCH, MEDIQA-Chat |
 
 `window` changes only pairs past the limit. `sentences` and `chunks` change every
@@ -268,8 +268,10 @@ note's score, and `chunks` measures precision only, so neither compares with
 
 Aggregates keep `truncated`. It's 0 with `window`; with `sentences` and `chunks` it
 counts notes where a sentence or chunk pair still passed the limit. `windowed` counts
-BERTScore pairs that needed windows, and `pairs` totals the pairs scored. Each pair is
-a model call: 74 generated sentences against 74 reference ones make 5,476.
+BERTScore pairs that needed windows, and `pairs` totals the pairs scored. Each
+distinct pair is a model call, so repeated sentences cost nothing more: 74 generated
+sentences against 74 reference ones made 5,476 calls: about nine minutes for
+BLEURT-20 on a 24-thread CPU, and 6 seconds for NegBLEURT. Use a GPU for BLEURT.
 
 **Window.** It follows the paper: segments of at most 512 tokens, overlapping by 100,
 embedded independently and concatenated, then BERTScore's greedy matching over the
@@ -313,9 +315,13 @@ words on whitespace, where the paper says tokens; this follows the code. Each cl
 sentence keeps its best chunk, and the claims average. Here the reference is the
 context and the generated note the claims, so a note that leaves out half the
 reference can still score high. A chunk and a sentence can still pass 512 tokens,
-and `truncated` counts those notes. NegBLEURT doesn't take `chunks`: in the check
-below it scored chunk pairs around −0.35, below its usual 0 to 1, for faithful and
-wrong notes alike.
+and `truncated` counts those notes.
+
+AlignScore's aggregation expects a model that judges whether a context supports a
+claim. BLEURT rates how alike two texts are, and a sentence is little like a
+350-word chunk: in the check below, BLEURT scored every version between 0.355 and
+0.364, errors or not. NegBLEURT went below 0, out of its usual 0 to 1, so it doesn't
+take `chunks`. Until a pair model fits it, `chunks` measures little.
 
 **Clinical BERTScore** takes no `long_text`. It already scores each reference
 utterance with the predicted words aligned to it, so windows add nothing. It doesn't
@@ -328,8 +334,8 @@ would be one more `long_text` value for all three metrics.
 
 **Repetition** isn't penalized by design: each piece is matched to its best
 counterpart, so a repeated sentence can match again. In the check below, a looping
-note raised NegBLEURT's precision and lowered windowed BERTScore's, so neither is a
-repetition measure.
+note raised BLEURT's and NegBLEURT's precision and lowered windowed BERTScore's, so
+none is a repetition measure.
 
 **Other languages.**
 
@@ -357,16 +363,19 @@ its own lines, against four versions of it, on CPU:
 | `bertscore` | `truncate` | 0.987 | 0.947 | 0.910 | 0.987 |
 | `bertscore` | `window` | 0.988 | 0.934 | 0.865 | 0.986 |
 | `bleurt` | `truncate` | 0.801 | 0.801 | 0.801 | 0.801 |
+| `bleurt` | `sentences` | 0.964 | 0.713 | 0.730 | 0.948 |
+| `bleurt` | `chunks` | 0.356 | 0.364 | 0.359 | 0.355 |
 | `negbleurt` | `truncate` | 0.283 | 0.283 | 0.340 | 0.283 |
 | `negbleurt` | `sentences` | 0.859 | 0.676 | 0.688 | 0.843 |
 
 - With `truncate`, BLEURT scored all four the same: a pair keeps about half its 512
   tokens from each note, and all four open alike. No metric saw the tail errors with
   `truncate`.
-- Split notes tell *cut* and *looping* from *generated* through recall: 0.56 against
-  0.86 for NegBLEURT. *Looping* raised its precision, 0.90 against 0.86.
-- The tail errors cost NegBLEURT 0.017 and windowed BERTScore 0.002. Four wrong
-  sentences in 74 barely move a mean; none of these detects errors.
+- `sentences` tells *cut* and *looping* from *generated* through recall: 0.57
+  against 0.96 for BLEURT, 0.56 against 0.86 for NegBLEURT. *Looping* raised
+  precision, to 1.01 for BLEURT, which scored identical sentences 0.99 to 1.02.
+- The tail errors cost BLEURT 0.016, NegBLEURT 0.017, and windowed BERTScore 0.002.
+  Four wrong sentences in 74 barely move a mean; none of these detects errors.
 
 NegBLEURT on another synthetic note, 12 sentences: identical, "denies chest pain"
 flipped to "reports chest pain", and that sentence dropped.
